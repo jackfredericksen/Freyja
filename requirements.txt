@@ -1,0 +1,60 @@
+# Freyja - Python 3.12 Compatible Requirements
+
+# Core Framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Database & ORM  
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+
+# AI & Content Generation
+openai>=1.0.0
+anthropic>=0.7.0
+
+# Web Scraping & Research
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+feedparser>=6.0.0
+
+# Data Processing (use latest versions for 3.12 support)
+pandas>=2.0.0
+numpy>=1.24.0
+python-dateutil>=2.8.0
+
+# Configuration & Environment
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Background Tasks
+celery>=5.3.0
+redis>=5.0.0
+
+# Scheduling & Time
+schedule>=1.2.0
+pytz>=2023.3
+
+# Analytics & Visualization (latest versions for 3.12)
+matplotlib>=3.7.0
+plotly>=5.15.0
+
+# Development & Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+
+# Security
+cryptography>=41.0.0
+
+# Google Trends for research
+pytrends>=4.9.0
+
+# News APIs
+newsapi-python>=0.2.6
+
+# Template Engine
+jinja2>=3.1.0
+
+# HTTP Client
+httpx>=0.25.0
