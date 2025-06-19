@@ -2,11 +2,12 @@
 Freyja - AI-Powered Social Media Assistant - Configuration Module
 Handles all configuration settings for the application
 """
-
-from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings
+from pydantic import Field
 from typing import List, Optional
 import os
 from pathlib import Path
+
 
 class DatabaseSettings(BaseSettings):
     """Database configuration settings"""
@@ -109,7 +110,8 @@ class Settings(BaseSettings):
     base_dir: Path = Field(default_factory=lambda: Path(__file__).parent)
     data_dir: Path = Field(default_factory=lambda: Path(__file__).parent / "data")
     logs_dir: Path = Field(default_factory=lambda: Path(__file__).parent / "logs")
-    
+    config_dir: Path = Field(default_factory=lambda: Path(__file__).parent / "config")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

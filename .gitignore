@@ -1,6 +1,7 @@
 *.pyc
 __pycache__/
 .env
+.env.example
 *.log
 .DS_Store
 node_modules/
