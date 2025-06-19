@@ -1,13 +1,11 @@
-"""
-Freyja - AI-Powered Social Media Assistant
-Main application entry point and testing hub
-"""
 
 import asyncio
 import sys
 from pathlib import Path
 from datetime import datetime
 import logging
+
+# Create logs directory if it doesn't exist
 
 # Configure logging
 logging.basicConfig(
@@ -20,6 +18,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
 
 def print_banner():
     """Print Freyja banner"""
@@ -36,6 +35,7 @@ def print_banner():
     ╚═══════════════════════════════════════════════════════════╝
     """
     print(banner)
+
 
 async def test_configuration():
     """Test basic configuration loading"""
@@ -115,47 +115,68 @@ async def test_trend_monitoring():
         print(f"   ❌ Trend Monitoring Error: {e}")
         return False
 
-async def test_ai_connection():
-    """Test AI service connections"""
+async def test_ai_content_generation():
+    """Test Claude-powered content generation"""
     try:
-        print("\n🤖 AI Services Test:")
+        print("\n🤖 AI Content Generation Test:")
         
+        # Check if Anthropic is configured
         from config import get_settings
         settings = get_settings()
         
-        # Test OpenAI
-        if settings.ai.openai_api_key and settings.ai.openai_api_key != "your_openai_api_key_here":
-            try:
-                import openai
-                client = openai.OpenAI(api_key=settings.ai.openai_api_key)
-                
-                # Simple test call
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": "Hello"}],
-                    max_tokens=5
-                )
-                print("   ✅ OpenAI connection successful")
-            except Exception as e:
-                print(f"   ❌ OpenAI Error: {e}")
-        else:
-            print("   ⚠️  OpenAI API key not configured")
-        
-        # Test Anthropic
-        if settings.ai.anthropic_api_key and settings.ai.anthropic_api_key != "your_anthropic_api_key_here":
-            try:
-                import anthropic
-                client = anthropic.Anthropic(api_key=settings.ai.anthropic_api_key)
-                print("   ✅ Anthropic client initialized")
-            except Exception as e:
-                print(f"   ❌ Anthropic Error: {e}")
-        else:
+        if not settings.ai.anthropic_api_key or settings.ai.anthropic_api_key == "your_anthropic_api_key_here":
             print("   ⚠️  Anthropic API key not configured")
-            
-        return True
+            print("   💡 Add your Claude API key to test content generation")
+            return True  # Not a failure, just not configured
         
+        # Test content generation
+        try:
+            from generation.ai_drafting.ai_content_generator import test_content_generation
+            
+            print("   🔄 Testing Claude content generation...")
+            success = await test_content_generation()
+            
+            if success:
+                print("   ✅ Claude content generation working!")
+                return True
+            else:
+                print("   ❌ Claude content generation failed")
+                return False
+                
+        except ImportError as e:
+            print(f"   ❌ Import Error: {e}")
+            print("   💡 Make sure ai_content_generator.py is in generation/ai_drafting/")
+            return False
+            
     except Exception as e:
-        print(f"   ❌ AI Services Error: {e}")
+        print(f"   ❌ Content Generation Error: {e}")
+        return False
+
+async def test_free_research():
+    """Test free research tools"""
+    try:
+        print("\n🔍 Free Research Tools Test:")
+        
+        try:
+            from research.trend_monitoring.free_research_tools import test_free_research
+            
+            print("   🔄 Testing free research sources...")
+            success = await test_free_research()
+            
+            if success:
+                print("   ✅ Free research tools working!")
+                return True
+            else:
+                print("   ❌ Free research tools failed")
+                return False
+                
+        except ImportError as e:
+            print(f"   ❌ Import Error: {e}")
+            print("   💡 Make sure free_research_tools.py is in research/trend_monitoring/")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Free Research Error: {e}")
         return False
 
 def check_directory_structure():
@@ -214,19 +235,26 @@ async def run_full_test():
     config_test = await test_configuration()
     test_results.append(("Configuration", config_test))
     
-    # Test 3: Trend Monitoring
+    # Test 3: Free Research Tools
+    if dir_check:
+        free_research_test = await test_free_research()
+        test_results.append(("Free Research Tools", free_research_test))
+    else:
+        test_results.append(("Free Research Tools", False))
+    
+    # Test 4: Trend Monitoring
     if dir_check and config_test:
         trend_test = await test_trend_monitoring()
         test_results.append(("Trend Monitoring", trend_test))
     else:
         test_results.append(("Trend Monitoring", False))
     
-    # Test 4: AI Services
+    # Test 5: AI Content Generation
     if config_test:
-        ai_test = await test_ai_connection()
-        test_results.append(("AI Services", ai_test))
+        ai_content_test = await test_ai_content_generation()
+        test_results.append(("AI Content Generation", ai_content_test))
     else:
-        test_results.append(("AI Services", False))
+        test_results.append(("AI Content Generation", False))
     
     # Summary
     print("\n" + "=" * 60)
@@ -264,26 +292,29 @@ async def interactive_mode():
     while True:
         print("\n🎛️  FREYJA INTERACTIVE MODE")
         print("1. Run full system test")
-        print("2. Test trend monitoring only")
-        print("3. Test AI services only")
-        print("4. Check configuration")
-        print("5. Exit")
+        print("2. Test free research tools only")
+        print("3. Test AI content generation only")
+        print("4. Test trend monitoring only")
+        print("5. Check configuration")
+        print("6. Exit")
         
-        choice = input("\nSelect option (1-5): ").strip()
+        choice = input("\nSelect option (1-6): ").strip()
         
         if choice == "1":
             await run_full_test()
         elif choice == "2":
-            await test_trend_monitoring()
+            await test_free_research()
         elif choice == "3":
-            await test_ai_connection()
+            await test_ai_content_generation()
         elif choice == "4":
-            await test_configuration()
+            await test_trend_monitoring()
         elif choice == "5":
+            await test_configuration()
+        elif choice == "6":
             print("👋 Goodbye!")
             break
         else:
-            print("❌ Invalid choice. Please select 1-5.")
+            print("❌ Invalid choice. Please select 1-6.")
 
 async def main():
     """Main application entry point"""
