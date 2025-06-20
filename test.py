@@ -1,26 +1,21 @@
-# test_approval_queue.py
-import asyncio
-from review_system.approval_dashboard.approval_queue import ApprovalQueue
+# test_templates.py
+from generation.content_templates.template_engine import TemplateEngine
 
-async def test_queue():
-    queue = ApprovalQueue()
+def test_templates():
+    engine = TemplateEngine()
     
-    # Add test content
-    item_id = await queue.add_item(
-        content="This is a test tweet! #testing",
-        content_type="tweet",
-        source="manual"
-    )
+    # Generate a tech insight tweet
+    variables = {
+        "insight_topic": "Python Programming",
+        "main_point": "List comprehensions are faster than loops",
+        "elaboration": "They're not just more readable, but also more efficient for creating lists.",
+        "call_to_action": "What's your favorite Python optimization?",
+        "hashtags": "#Python #Programming #Tips"
+    }
     
-    print(f"Added item: {item_id}")
-    
-    # Get pending items
-    pending = await queue.get_pending_items()
-    print(f"Pending items: {len(pending)}")
-    
-    # Approve the item
-    await queue.approve_item(item_id, "Looks good!")
-    print("Item approved!")
+    content = engine.generate_content("tech_insight", variables)
+    print("Generated content:")
+    print(content)
 
 if __name__ == "__main__":
-    asyncio.run(test_queue())
+    test_templates()
