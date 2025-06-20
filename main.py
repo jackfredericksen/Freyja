@@ -73,8 +73,11 @@ async def test_configuration():
         print(f"❌ Configuration Error: {e}")
         return False
 
+
 async def test_trend_monitoring():
     """Test the trend monitoring system"""
+    """This function tests the trend monitoring system by checking imports and basic functionality."""
+    from research.trend_monitoring.trend_monitor import TrendMonitor        
     try:
         print("\n🔍 Trend Monitoring Test:")
         

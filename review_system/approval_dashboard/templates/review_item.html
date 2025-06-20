@@ -1,0 +1,279 @@
+<div style="display: none;" id="review-item-template">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Content - Freyja</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .metric-card { transition: all 0.3s ease; }
+        .metric-card:hover { transform: translateY(-1px); }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="gradient-bg shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/queue" class="text-white hover:text-gray-200 mr-4">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Back to Queue
+                    </a>
+                    <div class="text-white text-xl font-bold">
+                        Content Review
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Content Preview -->
+            <div class="lg:col-span-2">
+                <div class="bg-white shadow rounded-lg">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Content Preview</h3>
+                    </div>
+                    <div class="p-6">
+                        <!-- Content display would go here -->
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                            <div class="whitespace-pre-wrap text-gray-900">{{ item.content }}</div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="flex space-x-3">
+                            <form method="POST" action="/approve/{{ item.id }}" class="inline">
+                                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                                    <i class="fas fa-check mr-2"></i>
+                                    Approve
+                                </button>
+                            </form>
+                            
+                            <button onclick="showRejectModal()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                                <i class="fas fa-times mr-2"></i>
+                                Reject
+                            </button>
+                            
+                            <button onclick="showEditModal()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                <i class="fas fa-edit mr-2"></i>
+                                Edit
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Improvement Suggestions -->
+                {% if suggestions %}
+                <div class="mt-6 bg-white shadow rounded-lg">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">
+                            <i class="fas fa-lightbulb mr-2 text-yellow-500"></i>
+                            Improvement Suggestions
+                        </h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-3">
+                            {% for suggestion in suggestions %}
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 mt-1">
+                                    <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                </div>
+                                <p class="ml-3 text-sm text-gray-700">{{ suggestion }}</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Metrics Sidebar -->
+            <div class="space-y-6">
+                <!-- Quality Metrics -->
+                <div class="bg-white shadow rounded-lg">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Quality Metrics</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            {% for metric, score in quality_scores.to_dict().items() %}
+                            {% if metric != 'overall_score' %}
+                            <div>
+                                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                                    <span>{{ metric.replace('_', ' ').title() }}</span>
+                                    <span>{{ score }}%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-{% if score >= 80 %}green{% elif score >= 60 %}yellow{% else %}red{% endif %}-500 h-2 rounded-full" style="width: {{ score }}%"></div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-gray-900 mb-1">{{ "%.1f"|format(quality_scores.overall_score) }}%</div>
+                                <div class="text-sm text-gray-600">Overall Quality Score</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brand Compliance -->
+                {% if brand_compliance %}
+                <div class="bg-white shadow rounded-lg">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Brand Compliance</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="text-center mb-4">
+                            <div class="text-2xl font-bold {% if brand_compliance.compliance_score >= 80 %}text-green-600{% elif brand_compliance.compliance_score >= 60 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                                {{ "%.1f"|format(brand_compliance.compliance_score) }}%
+                            </div>
+                            <div class="text-sm text-gray-600">Compliance Score</div>
+                        </div>
+
+                        {% if brand_compliance.issues %}
+                        <div class="mb-4">
+                            <h4 class="text-sm font-medium text-red-800 mb-2">Issues Found:</h4>
+                            <ul class="text-sm text-red-700 space-y-1">
+                                {% for issue in brand_compliance.issues %}
+                                <li class="flex items-start">
+                                    <i class="fas fa-exclamation-triangle text-red-500 mt-1 mr-2 flex-shrink-0"></i>
+                                    {{ issue }}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if brand_compliance.recommendations %}
+                        <div>
+                            <h4 class="text-sm font-medium text-blue-800 mb-2">Recommendations:</h4>
+                            <ul class="text-sm text-blue-700 space-y-1">
+                                {% for rec in brand_compliance.recommendations %}
+                                <li class="flex items-start">
+                                    <i class="fas fa-info-circle text-blue-500 mt-1 mr-2 flex-shrink-0"></i>
+                                    {{ rec }}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Content Info -->
+                <div class="bg-white shadow rounded-lg">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Content Info</h3>
+                    </div>
+                    <div class="p-6 space-y-3 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Type:</span>
+                            <span class="font-medium">{{ item.content_type.title() }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Source:</span>
+                            <span class="font-medium">{{ item.source.title() }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Created:</span>
+                            <span class="font-medium">{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Length:</span>
+                            <span class="font-medium">{{ item.content|length }} chars</span>
+                        </div>
+                        {% if item.hashtags %}
+                        <div>
+                            <span class="text-gray-600">Hashtags:</span>
+                            <div class="mt-1 flex flex-wrap gap-1">
+                                {% for hashtag in item.hashtags %}
+                                <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">#{{ hashtag }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reject Modal -->
+    <div id="rejectModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden" style="z-index: 50;">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <form method="POST" action="/reject/{{ item.id }}">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Reject Content</h3>
+                    </div>
+                    <div class="p-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Reason for rejection:</label>
+                        <textarea name="reason" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Please provide a detailed reason..." required></textarea>
+                    </div>
+                    <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
+                        <button type="button" onclick="hideRejectModal()" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Reject</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden" style="z-index: 50;">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full">
+                <form method="POST" action="/edit/{{ item.id }}">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Edit Content</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Content:</label>
+                            <textarea name="edited_content" rows="6" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" required>{{ item.content }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Edit notes (optional):</label>
+                            <textarea name="edit_notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Describe what you changed..."></textarea>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
+                        <button type="button" onclick="hideEditModal()" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showRejectModal() {
+            document.getElementById('rejectModal').classList.remove('hidden');
+        }
+        
+        function hideRejectModal() {
+            document.getElementById('rejectModal').classList.add('hidden');
+        }
+        
+        function showEditModal() {
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+        
+        function hideEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
+</div>
