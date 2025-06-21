@@ -1,5 +1,5 @@
 """
-Freyja - Approval Queue System
+Freyja - Approval Queue System (Fixed SQLAlchemy Issues)
 Manages content items through the review and approval process
 """
 
@@ -60,7 +60,7 @@ class ContentItem:
     hashtags: List[str] = None
     mentions: List[str] = None
     media_urls: List[str] = None
-    metadata: Dict[str, Any] = None
+    extra_data: Dict[str, Any] = None  # Changed from metadata to extra_data
     
     def dict(self):
         """Convert to dictionary"""
@@ -81,7 +81,7 @@ class ContentItem:
             'hashtags': self.hashtags or [],
             'mentions': self.mentions or [],
             'media_urls': self.media_urls or [],
-            'metadata': self.metadata or {}
+            'extra_data': self.extra_data or {}
         }
 
 class ContentItemDB(Base):
@@ -104,7 +104,7 @@ class ContentItemDB(Base):
     hashtags = Column(JSON, nullable=True)
     mentions = Column(JSON, nullable=True)
     media_urls = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)  # Changed from metadata to extra_data
 
 class ApprovalQueue:
     """Main approval queue management class"""
@@ -122,7 +122,7 @@ class ApprovalQueue:
             logger.error(f"Error creating database tables: {e}")
     
     async def add_item(self, content: str, content_type: str, source: str = "manual", 
-                      metadata: Dict[str, Any] = None) -> str:
+                      extra_data: Dict[str, Any] = None) -> str:  # Changed parameter name
         """Add a new content item to the queue"""
         try:
             item_id = str(uuid.uuid4())
@@ -138,7 +138,7 @@ class ApprovalQueue:
                 source=source,
                 hashtags=hashtags,
                 mentions=mentions,
-                metadata=metadata or {}
+                extra_data=extra_data or {}  # Changed from metadata
             )
             
             self.session.add(db_item)
@@ -284,14 +284,14 @@ class ApprovalQueue:
             if not db_item:
                 return False
             
-            # Store original content in metadata
-            if not db_item.metadata:
-                db_item.metadata = {}
+            # Store original content in extra_data
+            if not db_item.extra_data:
+                db_item.extra_data = {}
             
-            if 'edit_history' not in db_item.metadata:
-                db_item.metadata['edit_history'] = []
+            if 'edit_history' not in db_item.extra_data:
+                db_item.extra_data['edit_history'] = []
             
-            db_item.metadata['edit_history'].append({
+            db_item.extra_data['edit_history'].append({
                 'original_content': db_item.content,
                 'edit_time': datetime.now().isoformat(),
                 'edit_notes': edit_notes
@@ -306,7 +306,7 @@ class ApprovalQueue:
             db_item.hashtags = self._extract_hashtags(new_content)
             db_item.mentions = self._extract_mentions(new_content)
             
-            # Mark metadata as dirty for SQLAlchemy
+            # Mark extra_data as dirty for SQLAlchemy
             self.session.merge(db_item)
             self.session.commit()
             
@@ -493,7 +493,7 @@ class ApprovalQueue:
             hashtags=db_item.hashtags or [],
             mentions=db_item.mentions or [],
             media_urls=db_item.media_urls or [],
-            metadata=db_item.metadata or {}
+            extra_data=db_item.extra_data or {}  # Changed from metadata
         )
     
     def _extract_hashtags(self, content: str) -> List[str]:
@@ -523,7 +523,7 @@ async def test_approval_queue():
         content="This is a test tweet with #hashtag and @mention! 🚀",
         content_type="tweet",
         source="test",
-        metadata={"test": True}
+        extra_data={"test": True}  # Changed from metadata
     )
     
     print(f"Added test item: {item_id}")

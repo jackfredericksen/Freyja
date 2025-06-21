@@ -1,1 +1,1 @@
-# Freyja - AI-Powered Social Media Assistant
+# Freyja - Goddess of Seiðr

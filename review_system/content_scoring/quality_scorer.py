@@ -5,7 +5,7 @@ Analyzes and scores content based on engagement potential and quality metrics
 
 import re
 import asyncio
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Any
 from dataclasses import dataclass
 from datetime import datetime
 import logging
