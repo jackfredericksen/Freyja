@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Schedule Content - Freyja</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .content-section { background: white; padding: 25px; border-radius: 10px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-secondary { background: #e5e7eb; color: #374151; }
+        .content-preview { padding: 15px; background: #f8fafc; border-radius: 8px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="content-section">
+            <h1>Schedule Content</h1>
+            <a href="/queue" style="color: #6366f1; text-decoration: none;">← Back to Queue</a>
+            
+            <div class="content-preview">
+                <strong>Content to Schedule:</strong><br>
+                {{ item.content }}
+            </div>
+            
+            <form method="post" action="/schedule/{{ item.id }}">
+                <div class="form-group">
+                    <label for="scheduled_time">Schedule Date & Time:</label>
+                    <input type="datetime-local" id="scheduled_time" name="scheduled_time" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="timezone">Timezone:</label>
+                    <select id="timezone" name="timezone">
+                        <option value="UTC">UTC</option>
+                        <option value="EST">Eastern Time</option>
+                        <option value="PST">Pacific Time</option>
+                        <option value="CST">Central Time</option>
+                        <option value="MST">Mountain Time</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-primary">📅 Schedule Content</button>
+                    <a href="/queue" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        // Set minimum date to now
+        document.getElementById('scheduled_time').min = new Date().toISOString().slice(0, 16);
+    </script>
+</body>
+</html>

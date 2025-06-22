@@ -296,3 +296,348 @@ async def server_error_handler(request: Request, exc: HTTPException):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+# Add these imports at the top of web_interface.py after existing imports
+import asyncio
+from datetime import datetime, timedelta
+import threading
+import time
+
+# Add this class after the existing imports
+class ContentPublisher:
+    """Handles publishing approved content to social media platforms"""
+    
+    def __init__(self):
+        self.published_items = set()
+        
+    async def publish_content(self, item_id: str, content: str, platform: str = "twitter"):
+        """Simulate publishing content (replace with real API calls)"""
+        try:
+            # Simulate API call delay
+            await asyncio.sleep(1)
+            
+            # In a real implementation, you would:
+            # 1. Use Twitter API, Buffer API, etc.
+            # 2. Handle authentication
+            # 3. Post the content
+            # 4. Get the post URL/ID back
+            
+            # For now, we'll simulate success
+            published_url = f"https://twitter.com/yourhandle/status/{item_id[:10]}"
+            
+            # Update the database to mark as published
+            async with aiosqlite.connect("data/approval_queue.db") as db:
+                await db.execute("""
+                    UPDATE content_items 
+                    SET status = 'published', metadata = ?
+                    WHERE id = ?
+                """, (
+                    json.dumps({"published_url": published_url, "published_at": datetime.now().isoformat()}),
+                    item_id
+                ))
+                await db.commit()
+            
+            logger.info(f"Published content {item_id} to {platform}")
+            return {"success": True, "url": published_url}
+            
+        except Exception as e:
+            logger.error(f"Failed to publish content {item_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+# Initialize the publisher
+content_publisher = ContentPublisher()
+
+# Add this background task function
+async def auto_publish_approved_content():
+    """Background task to automatically publish approved content"""
+    while True:
+        try:
+            # Get approved items that haven't been published
+            async with aiosqlite.connect("data/approval_queue.db") as db:
+                async with db.execute("""
+                    SELECT id, content FROM content_items 
+                    WHERE status = 'approved' 
+                    ORDER BY updated_at ASC 
+                    LIMIT 5
+                """) as cursor:
+                    rows = await cursor.fetchall()
+                    
+                    for row in rows:
+                        item_id, content = row
+                        await content_publisher.publish_content(item_id, content)
+                        await asyncio.sleep(2)  # Rate limiting
+                        
+        except Exception as e:
+            logger.error(f"Error in auto-publish task: {e}")
+        
+        # Wait 30 seconds before checking again
+        await asyncio.sleep(30)
+
+# Add these new route handlers after the existing ones
+@app.post("/publish/{item_id}")
+async def manual_publish(item_id: str):
+    """Manually publish an approved item"""
+    try:
+        item = await approval_queue.get_item(item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Content item not found")
+        
+        if item.status != ContentStatus.APPROVED:
+            raise HTTPException(status_code=400, detail="Only approved content can be published")
+        
+        result = await content_publisher.publish_content(item_id, item.content)
+        
+        if result["success"]:
+            return RedirectResponse(url="/queue?status=approved", status_code=303)
+        else:
+            raise HTTPException(status_code=500, detail=f"Publishing failed: {result['error']}")
+            
+    except Exception as e:
+        logger.error(f"Error publishing item {item_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error publishing content")
+
+@app.get("/schedule/{item_id}", response_class=HTMLResponse)
+async def schedule_content(request: Request, item_id: str):
+    """Schedule content for later publishing"""
+    try:
+        item = await approval_queue.get_item(item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Content item not found")
+        
+        return templates.TemplateResponse("schedule.html", {
+            "request": request,
+            "item": item
+        })
+        
+    except Exception as e:
+        logger.error(f"Error loading schedule page: {e}")
+        raise HTTPException(status_code=500, detail="Error loading schedule page")
+
+@app.post("/schedule/{item_id}")
+async def schedule_content_post(
+    item_id: str,
+    scheduled_time: str = Form(...),
+    timezone: str = Form("UTC")
+):
+    """Save scheduled time for content"""
+    try:
+        # Parse the scheduled time
+        scheduled_dt = datetime.fromisoformat(scheduled_time)
+        
+        # Update the item with scheduled time
+        async with aiosqlite.connect("data/approval_queue.db") as db:
+            await db.execute("""
+                UPDATE content_items 
+                SET status = 'scheduled', metadata = ?
+                WHERE id = ?
+            """, (
+                json.dumps({"scheduled_time": scheduled_dt.isoformat(), "timezone": timezone}),
+                item_id
+            ))
+            await db.commit()
+        
+        return RedirectResponse(url="/queue?status=scheduled", status_code=303)
+        
+    except Exception as e:
+        logger.error(f"Error scheduling item {item_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error scheduling content")
+
+# Add startup event to begin auto-publishing
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks"""
+    # Start the auto-publisher in the background
+    asyncio.create_task(auto_publish_approved_content())
+    logger.info("Started auto-publishing background task")
+
+
+# Additional imports for publishing functionality
+import asyncio
+from datetime import datetime, timedelta
+import threading
+import time
+
+# Content Publisher Class
+class ContentPublisher:
+    """Handles publishing approved content to social media platforms"""
+    
+    def __init__(self):
+        self.published_items = set()
+        
+    async def publish_content(self, item_id: str, content: str, platform: str = "twitter"):
+        """Simulate publishing content (replace with real API calls)"""
+        try:
+            # Simulate API call delay
+            await asyncio.sleep(1)
+            
+            # In a real implementation, you would:
+            # 1. Use Twitter API, Buffer API, etc.
+            # 2. Handle authentication
+            # 3. Post the content
+            # 4. Get the post URL/ID back
+            
+            # For now, we'll simulate success
+            published_url = f"https://twitter.com/yourhandle/status/{item_id[:10]}"
+            
+            # Update the database to mark as published
+            async with aiosqlite.connect("data/approval_queue.db") as db:
+                await db.execute("""
+                    UPDATE content_items 
+                    SET status = 'published', metadata = ?
+                    WHERE id = ?
+                """, (
+                    json.dumps({"published_url": published_url, "published_at": datetime.now().isoformat()}),
+                    item_id
+                ))
+                await db.commit()
+            
+            logger.info(f"Published content {item_id} to {platform}")
+            return {"success": True, "url": published_url}
+            
+        except Exception as e:
+            logger.error(f"Failed to publish content {item_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+# Initialize the publisher
+content_publisher = ContentPublisher()
+
+# Background task for auto-publishing
+async def auto_publish_approved_content():
+    """Background task to automatically publish approved content"""
+    while True:
+        try:
+            # Get approved items that haven't been published
+            async with aiosqlite.connect("data/approval_queue.db") as db:
+                async with db.execute("""
+                    SELECT id, content FROM content_items 
+                    WHERE status = 'approved' 
+                    ORDER BY updated_at ASC 
+                    LIMIT 5
+                """) as cursor:
+                    rows = await cursor.fetchall()
+                    
+                    for row in rows:
+                        item_id, content = row
+                        await content_publisher.publish_content(item_id, content)
+                        await asyncio.sleep(2)  # Rate limiting
+                        
+        except Exception as e:
+            logger.error(f"Error in auto-publish task: {e}")
+        
+        # Wait 30 seconds before checking again
+        await asyncio.sleep(30)
+
+# New route handlers
+@app.post("/publish/{item_id}")
+async def manual_publish(item_id: str):
+    """Manually publish an approved item"""
+    try:
+        item = await approval_queue.get_item(item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Content item not found")
+        
+        if item.status != ContentStatus.APPROVED:
+            raise HTTPException(status_code=400, detail="Only approved content can be published")
+        
+        result = await content_publisher.publish_content(item_id, item.content)
+        
+        if result["success"]:
+            return RedirectResponse(url="/queue?status=approved", status_code=303)
+        else:
+            raise HTTPException(status_code=500, detail=f"Publishing failed: {result['error']}")
+            
+    except Exception as e:
+        logger.error(f"Error publishing item {item_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error publishing content")
+
+@app.get("/schedule/{item_id}", response_class=HTMLResponse)
+async def schedule_content(request: Request, item_id: str):
+    """Schedule content for later publishing"""
+    try:
+        item = await approval_queue.get_item(item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Content item not found")
+        
+        return templates.TemplateResponse("schedule.html", {
+            "request": request,
+            "item": item
+        })
+        
+    except Exception as e:
+        logger.error(f"Error loading schedule page: {e}")
+        raise HTTPException(status_code=500, detail="Error loading schedule page")
+
+@app.post("/schedule/{item_id}")
+async def schedule_content_post(
+    item_id: str,
+    scheduled_time: str = Form(...),
+    timezone: str = Form("UTC")
+):
+    """Save scheduled time for content"""
+    try:
+        # Parse the scheduled time
+        scheduled_dt = datetime.fromisoformat(scheduled_time)
+        
+        # Update the item with scheduled time
+        async with aiosqlite.connect("data/approval_queue.db") as db:
+            await db.execute("""
+                UPDATE content_items 
+                SET status = 'scheduled', metadata = ?
+                WHERE id = ?
+            """, (
+                json.dumps({"scheduled_time": scheduled_dt.isoformat(), "timezone": timezone}),
+                item_id
+            ))
+            await db.commit()
+        
+        return RedirectResponse(url="/queue?status=scheduled", status_code=303)
+        
+    except Exception as e:
+        logger.error(f"Error scheduling item {item_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error scheduling content")
+
+# Enhanced analytics function
+async def get_comprehensive_analytics():
+    """Get comprehensive analytics including publishing stats"""
+    try:
+        async with aiosqlite.connect("data/approval_queue.db") as db:
+            # Get counts for each status
+            analytics = {}
+            
+            for status in ["pending", "approved", "rejected", "scheduled", "published"]:
+                async with db.execute(
+                    "SELECT COUNT(*) FROM content_items WHERE status = ?", (status,)
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    analytics[status] = row[0] if row else 0
+            
+            return analytics
+            
+    except Exception as e:
+        logger.error(f"Error getting comprehensive analytics: {e}")
+        return {"pending": 0, "approved": 0, "rejected": 0, "scheduled": 0, "published": 0}
+
+# Update analytics route
+@app.get("/analytics", response_class=HTMLResponse)
+async def analytics_dashboard(request: Request):
+    """Analytics and insights dashboard"""
+    try:
+        # Get comprehensive analytics
+        analytics = await get_comprehensive_analytics()
+        
+        return templates.TemplateResponse("analytics.html", {
+            "request": request,
+            "analytics": analytics,
+            "brand_settings": getattr(settings, 'brand', {})
+        })
+        
+    except Exception as e:
+        logger.error(f"Error loading analytics: {e}")
+        raise HTTPException(status_code=500, detail="Error loading analytics")
+
+# Startup event to begin auto-publishing
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks"""
+    # Start the auto-publisher in the background
+    asyncio.create_task(auto_publish_approved_content())
+    logger.info("Started auto-publishing background task")

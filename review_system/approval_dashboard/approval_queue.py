@@ -20,6 +20,8 @@ class ContentStatus(Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     EDITED = "edited"
+    SCHEDULED = "scheduled"
+    PUBLISHED = "published"
 
 @dataclass
 class ContentItem:
@@ -167,6 +169,39 @@ class ApprovalQueue:
             "rejected": await self.get_rejected_count()
         }
     
+
+    async def get_pending_items(self, limit: int = 50) -> List[ContentItem]:
+        """Get all pending approval items"""
+        return await self._get_items_by_status(ContentStatus.PENDING, limit)
+    
+    async def get_approved_items(self, limit: int = 50) -> List[ContentItem]:
+        """Get all approved items"""
+        return await self._get_items_by_status(ContentStatus.APPROVED, limit)
+    
+    async def get_rejected_items(self, limit: int = 50) -> List[ContentItem]:
+        """Get all rejected items"""
+        return await self._get_items_by_status(ContentStatus.REJECTED, limit)
+    
+    async def get_all_items(self, limit: int = 100) -> List[ContentItem]:
+        """Get all items regardless of status"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT * FROM content_items ORDER BY created_at DESC LIMIT ?", (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                return [self._row_to_content_item(row) for row in rows]
+    
+    async def _get_items_by_status(self, status: ContentStatus, limit: int) -> List[ContentItem]:
+        """Helper method to get items by status"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("""
+                SELECT * FROM content_items 
+                WHERE status = ? 
+                ORDER BY created_at DESC 
+                LIMIT ?
+            """, (status.value, limit)) as cursor:
+                rows = await cursor.fetchall()
+                return [self._row_to_content_item(row) for row in rows]
+
+
     def _row_to_content_item(self, row) -> ContentItem:
         """Convert database row to ContentItem"""
         return ContentItem(

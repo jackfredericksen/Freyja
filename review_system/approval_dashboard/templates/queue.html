@@ -1,6 +1,148 @@
 <!DOCTYPE html>
-<html><head><title>Queue - Freyja</title><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; margin: 20px;">
-<h1>Review Queue</h1><p>Queue functionality coming soon...</p>
-<a href="/" style="color: #6366f1;">← Back to Dashboard</a>
-</body></html>
+<html>
+<head>
+    <title>Review Queue - Freyja</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { background: #6366f1; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .filters { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .filter-btn { padding: 10px 20px; margin-right: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        .filter-btn.active { background: #6366f1; color: white; }
+        .filter-btn:not(.active) { background: #e5e7eb; color: #374151; }
+        .items { background: white; border-radius: 10px; overflow: hidden; }
+        .item { padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+        .item:last-child { border-bottom: none; }
+        .item-content { flex: 1; }
+        .item-text { font-weight: 500; margin-bottom: 5px; }
+        .item-meta { font-size: 0.9em; color: #6b7280; }
+        .item-actions { display: flex; gap: 10px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 0.9em; }
+        .btn-approve { background: #10b981; color: white; }
+        .btn-reject { background: #ef4444; color: white; }
+        .btn-review { background: #6366f1; color: white; }
+        .btn-publish { background: #8b5cf6; color: white; }
+        .btn-schedule { background: #06b6d4; color: white; }
+        .btn-view { background: #64748b; color: white; }
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+        .status-scheduled { background: #ddd6fe; color: #5b21b6; }
+        .status-published { background: #cffafe; color: #164e63; }
+        .empty { text-align: center; padding: 40px; color: #6b7280; }
+        .auto-publish-notice { background: #e0f2fe; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Review Queue</h1>
+            <p>Manage and approve content items</p>
+            <a href="/" style="color: white; text-decoration: none;">← Back to Dashboard</a>
+        </div>
+        
+        <div class="auto-publish-notice">
+            <strong>📡 Auto-Publishing Active:</strong> Approved content will be automatically published to social media platforms every 30 seconds.
+        </div>
+        
+        <div class="filters">
+            <button class="filter-btn {% if current_status == 'pending' %}active{% endif %}" 
+                    onclick="filterItems('pending')">Pending</button>
+            <button class="filter-btn {% if current_status == 'approved' %}active{% endif %}" 
+                    onclick="filterItems('approved')">Approved</button>
+            <button class="filter-btn {% if current_status == 'scheduled' %}active{% endif %}" 
+                    onclick="filterItems('scheduled')">Scheduled</button>
+            <button class="filter-btn {% if current_status == 'published' %}active{% endif %}" 
+                    onclick="filterItems('published')">Published</button>
+            <button class="filter-btn {% if current_status == 'rejected' %}active{% endif %}" 
+                    onclick="filterItems('rejected')">Rejected</button>
+            <button class="filter-btn {% if current_status == 'all' %}active{% endif %}" 
+                    onclick="filterItems('all')">All</button>
+        </div>
+        
+        <div class="items">
+            {% if items %}
+                {% for item in items %}
+                <div class="item">
+                    <div class="item-content">
+                        <div class="item-text">{{ item.content }}</div>
+                        <div class="item-meta">
+                            {{ item.content_type.title() }} • {{ item.source }} • 
+                            {{ item.created_at.strftime('%b %d, %Y at %I:%M %p') }}
+                            {% if item.approval_feedback %}
+                            <br>✓ Feedback: {{ item.approval_feedback }}
+                            {% endif %}
+                            {% if item.rejection_reason %}
+                            <br>✗ Rejection: {{ item.rejection_reason }}
+                            {% endif %}
+                            {% if item.metadata and item.metadata.get('published_url') %}
+                            <br>🔗 <a href="{{ item.metadata.published_url }}" target="_blank">View Published</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span class="status-badge status-{{ item.status.value }}">
+                            {{ item.status.value.title() }}
+                        </span>
+                        <div class="item-actions">
+                            {% if item.status.value == 'pending' %}
+                                <form method="post" action="/approve/{{ item.id }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-approve">✓ Approve</button>
+                                </form>
+                                <button class="btn btn-reject" onclick="rejectItem('{{ item.id }}')">✗ Reject</button>
+                            {% elif item.status.value == 'approved' %}
+                                <form method="post" action="/publish/{{ item.id }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-publish">🚀 Publish</button>
+                                </form>
+                                <a href="/schedule/{{ item.id }}" class="btn btn-schedule">📅 Schedule</a>
+                            {% elif item.status.value == 'published' %}
+                                {% if item.metadata and item.metadata.get('published_url') %}
+                                <a href="{{ item.metadata.published_url }}" target="_blank" class="btn btn-view">🔗 View</a>
+                                {% endif %}
+                            {% endif %}
+                            <a href="/review/{{ item.id }}" class="btn btn-review">👁 Review</a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty">
+                    <h3>No items found</h3>
+                    <p>No content items match the current filter.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        function filterItems(status) {
+            window.location.href = '/queue?status=' + status;
+        }
+        
+        function rejectItem(itemId) {
+            const reason = prompt('Why are you rejecting this content?');
+            if (reason) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/reject/' + itemId;
+                
+                const reasonInput = document.createElement('input');
+                reasonInput.type = 'hidden';
+                reasonInput.name = 'reason';
+                reasonInput.value = reason;
+                
+                form.appendChild(reasonInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        // Auto-refresh every 30 seconds to show publishing updates
+        setInterval(function() {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

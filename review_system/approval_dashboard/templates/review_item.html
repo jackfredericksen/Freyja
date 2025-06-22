@@ -1,6 +1,259 @@
 <!DOCTYPE html>
-<html><head><title>Review Item - Freyja</title><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; margin: 20px;">
-<h1>Review Item</h1><p>Review functionality coming soon...</p>
-<a href="/" style="color: #6366f1;">← Back to Dashboard</a>
-</body></html>
+<html>
+<head>
+    <title>Review Item - Freyja</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { background: #6366f1; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .content-section { background: white; padding: 25px; border-radius: 10px; margin-bottom: 20px; }
+        .content-preview { font-size: 1.1em; line-height: 1.6; padding: 20px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #6366f1; }
+        .scores-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 20px 0; }
+        .score-card { text-align: center; padding: 15px; background: #f8fafc; border-radius: 8px; }
+        .score-number { font-size: 1.8em; font-weight: bold; margin-bottom: 5px; }
+        .score-label { font-size: 0.9em; color: #6b7280; }
+        .actions { display: flex; gap: 15px; justify-content: center; margin-top: 25px; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
+        .btn-approve { background: #10b981; color: white; }
+        .btn-reject { background: #ef4444; color: white; }
+        .btn-edit { background: #f59e0b; color: white; }
+        .btn-publish { background: #8b5cf6; color: white; }
+        .btn-schedule { background: #06b6d4; color: white; }
+        .btn-secondary { background: #e5e7eb; color: #374151; }
+        .suggestions { background: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .issues { background: #fee2e2; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .metadata { font-size: 0.9em; color: #6b7280; margin-top: 15px; }
+        .edit-form { display: none; margin-top: 20px; }
+        .edit-form textarea { width: 100%; min-height: 100px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+        .good { color: #10b981; } .warning { color: #f59e0b; } .poor { color: #ef4444; }
+        .tabs { display: flex; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; background: #e5e7eb; border: none; cursor: pointer; }
+        .tab.active { background: #6366f1; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Review Content Item</h1>
+            <a href="/queue" style="color: white; text-decoration: none;">← Back to Queue</a>
+        </div>
+        
+        <div class="content-section">
+            <h2>Content Preview</h2>
+            <div class="content-preview">{{ item.content }}</div>
+            
+            <div class="metadata">
+                <strong>Type:</strong> {{ item.content_type.title() }} | 
+                <strong>Source:</strong> {{ item.source }} | 
+                <strong>Created:</strong> {{ item.created_at.strftime('%b %d, %Y at %I:%M %p') }} |
+                <strong>Status:</strong> {{ item.status.value.title() }} |
+                <strong>Length:</strong> {{ item.content|length }} characters
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('quality')">Quality Scores</button>
+            <button class="tab" onclick="showTab('compliance')">Brand Compliance</button>
+            <button class="tab" onclick="showTab('suggestions')">Suggestions</button>
+            <button class="tab" onclick="showTab('history')">History</button>
+        </div>
+        
+        <div id="quality" class="tab-content active">
+            <div class="content-section">
+                <h3>Quality Assessment</h3>
+                {% if quality_scores %}
+                <div class="scores-grid">
+                    <div class="score-card">
+                        <div class="score-number {% if quality_scores.overall >= 0.8 %}good{% elif quality_scores.overall >= 0.6 %}warning{% else %}poor{% endif %}">
+                            {{ "%.1f"|format(quality_scores.overall * 100) }}%
+                        </div>
+                        <div class="score-label">Overall Score</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-number {% if quality_scores.engagement_potential >= 0.7 %}good{% elif quality_scores.engagement_potential >= 0.5 %}warning{% else %}poor{% endif %}">
+                            {{ "%.1f"|format(quality_scores.engagement_potential * 100) }}%
+                        </div>
+                        <div class="score-label">Engagement</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-number {% if quality_scores.readability >= 0.7 %}good{% elif quality_scores.readability >= 0.5 %}warning{% else %}poor{% endif %}">
+                            {{ "%.1f"|format(quality_scores.readability * 100) }}%
+                        </div>
+                        <div class="score-label">Readability</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-number {% if quality_scores.brand_alignment >= 0.7 %}good{% elif quality_scores.brand_alignment >= 0.5 %}warning{% else %}poor{% endif %}">
+                            {{ "%.1f"|format(quality_scores.brand_alignment * 100) }}%
+                        </div>
+                        <div class="score-label">Brand Alignment</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-number {% if quality_scores.technical_quality >= 0.7 %}good{% elif quality_scores.technical_quality >= 0.5 %}warning{% else %}poor{% endif %}">
+                            {{ "%.1f"|format(quality_scores.technical_quality * 100) }}%
+                        </div>
+                        <div class="score-label">Technical Quality</div>
+                    </div>
+                </div>
+                {% else %}
+                <p>Quality scores will be calculated automatically...</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div id="compliance" class="tab-content">
+            <div class="content-section">
+                <h3>Brand Compliance Check</h3>
+                {% if brand_compliance %}
+                    <p><strong>Compliance Level:</strong> 
+                    <span class="{% if brand_compliance.level == 'compliant' %}good{% elif brand_compliance.level == 'warning' %}warning{% else %}poor{% endif %}">
+                        {{ brand_compliance.level.title() }}
+                    </span>
+                    ({{ "%.1f"|format(brand_compliance.score * 100) }}%)
+                    </p>
+                    
+                    {% if brand_compliance.issues %}
+                    <div class="issues">
+                        <strong>Issues Found:</strong>
+                        <ul>
+                        {% for issue in brand_compliance.issues %}
+                            <li>{{ issue }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                {% else %}
+                <p>Brand compliance will be checked automatically...</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div id="suggestions" class="tab-content">
+            <div class="content-section">
+                <h3>Improvement Suggestions</h3>
+                {% if suggestions %}
+                <div class="suggestions">
+                    <ul>
+                    {% for suggestion in suggestions %}
+                        <li>{{ suggestion }}</li>
+                    {% endfor %}
+                    </ul>
+                </div>
+                {% else %}
+                <p>No specific suggestions at this time.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div id="history" class="tab-content">
+            <div class="content-section">
+                <h3>Edit History</h3>
+                {% if item.edit_history %}
+                    {% for edit in item.edit_history %}
+                    <div style="padding: 10px; border-left: 3px solid #e5e7eb; margin: 10px 0;">
+                        <strong>{{ edit.timestamp }}</strong><br>
+                        {{ edit.notes or "No notes provided" }}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p>No edit history available.</p>
+                {% endif %}
+                
+                {% if item.approval_feedback %}
+                <div style="padding: 15px; background: #d1fae5; border-radius: 8px; margin-top: 15px;">
+                    <strong>Approval Feedback:</strong> {{ item.approval_feedback }}
+                </div>
+                {% endif %}
+                
+                {% if item.rejection_reason %}
+                <div style="padding: 15px; background: #fee2e2; border-radius: 8px; margin-top: 15px;">
+                    <strong>Rejection Reason:</strong> {{ item.rejection_reason }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="content-section">
+            <div class="actions">
+                {% if item.status.value == 'pending' %}
+                    <form method="post" action="/approve/{{ item.id }}" style="display: inline;">
+                        <input type="hidden" name="feedback" value="Approved via review interface">
+                        <button type="submit" class="btn btn-approve">✓ Approve</button>
+                    </form>
+                    <button class="btn btn-reject" onclick="rejectItem()">✗ Reject</button>
+                    <button class="btn btn-edit" onclick="toggleEdit()">✏ Edit</button>
+                {% elif item.status.value == 'approved' %}
+                    <form method="post" action="/publish/{{ item.id }}" style="display: inline;">
+                        <button type="submit" class="btn btn-publish">🚀 Publish Now</button>
+                    </form>
+                    <a href="/schedule/{{ item.id }}" class="btn btn-schedule">📅 Schedule</a>
+                {% elif item.status.value == 'published' %}
+                    {% if item.metadata and item.metadata.published_url %}
+                    <a href="{{ item.metadata.published_url }}" target="_blank" class="btn btn-secondary">🔗 View Published</a>
+                    {% endif %}
+                {% endif %}
+                
+                <a href="/queue" class="btn btn-secondary">← Back to Queue</a>
+            </div>
+            
+            <div id="editForm" class="edit-form">
+                <h4>Edit Content</h4>
+                <form method="post" action="/edit/{{ item.id }}">
+                    <textarea name="edited_content" placeholder="Edit your content here...">{{ item.content }}</textarea>
+                    <br><br>
+                    <input type="text" name="edit_notes" placeholder="Edit notes (optional)" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+                    <div>
+                        <button type="submit" class="btn btn-approve">Save Changes</button>
+                        <button type="button" class="btn btn-secondary" onclick="toggleEdit()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+        
+        function toggleEdit() {
+            const form = document.getElementById('editForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function rejectItem() {
+            const reason = prompt('Why are you rejecting this content?');
+            if (reason) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/reject/{{ item.id }}';
+                
+                const reasonInput = document.createElement('input');
+                reasonInput.type = 'hidden';
+                reasonInput.name = 'reason';
+                reasonInput.value = reason;
+                
+                form.appendChild(reasonInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    </script>
+</body>
+</html>
