@@ -1,300 +1,235 @@
 """
-Windows-Safe Nuclear Config Fix
-Creates a completely new config file without unicode issues
+Complete Twitter Authentication Fix with all imports
 """
 
-import os
-import sys
-from pathlib import Path
+import asyncio
+import aiohttp
+import hmac
+import hashlib
+import base64
+import urllib.parse
+import time
+import secrets
+import logging
+from typing import Dict
 
-def create_windows_safe_config():
-    """Create a completely fresh config file - Windows safe"""
-    
-    config_content = '''"""
-Freyja - Fresh Configuration Module
-Created to fix caching issues
-"""
-from pydantic_settings import BaseSettings
-from pydantic import Field
-from typing import List, Optional
-from pathlib import Path
-from dotenv import load_dotenv
+logger = logging.getLogger(__name__)
 
-# FORCE load environment variables every time
-load_dotenv(override=True, verbose=False)
-
-class DatabaseSettings(BaseSettings):
-    """Database configuration settings"""
-    url: str = Field(default="sqlite:///./freyja.db")
-    echo: bool = Field(default=False)
+class TwitterDirectAPI:
+    """Direct Twitter API v2 integration with fixed OAuth 1.0a"""
     
-    model_config = {"env_prefix": "DB_", "extra": "allow"}
-
-class AISettings(BaseSettings):
-    """AI service configuration"""
-    openai_api_key: Optional[str] = Field(default=None)
-    anthropic_api_key: Optional[str] = Field(default=None)
-    default_model: str = Field(default="gpt-3.5-turbo")
-    max_tokens: int = Field(default=1000)
-    temperature: float = Field(default=0.7)
+    def __init__(self, bearer_token: str, api_key: str, api_secret: str, 
+                 access_token: str, access_token_secret: str):
+        self.bearer_token = bearer_token
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.access_token = access_token
+        self.access_token_secret = access_token_secret
+        self.base_url = "https://api.twitter.com/2"
     
-    model_config = {"env_prefix": "AI_", "extra": "allow"}
-
-class SchedulingSettings(BaseSettings):
-    """Third-party scheduling platform settings"""
-    buffer_api_key: Optional[str] = Field(default=None)
-    hootsuite_api_key: Optional[str] = Field(default=None)
-    later_api_key: Optional[str] = Field(default=None)
-    
-    # Twitter API v2 Keys
-    twitter_bearer_token: Optional[str] = Field(default=None)
-    twitter_api_key: Optional[str] = Field(default=None)
-    twitter_api_secret: Optional[str] = Field(default=None)
-    twitter_access_token: Optional[str] = Field(default=None)
-    twitter_access_token_secret: Optional[str] = Field(default=None)
-    
-    model_config = {"env_prefix": "SCHEDULE_", "extra": "allow"}
-
-class ResearchSettings(BaseSettings):
-    """Research and monitoring settings"""
-    google_trends_enabled: bool = Field(default=True)
-    news_api_key: Optional[str] = Field(default=None)
-    monitoring_interval: int = Field(default=3600)
-    max_trends_per_check: int = Field(default=20)
-    
-    model_config = {"env_prefix": "RESEARCH_", "extra": "allow"}
-
-class BrandSettings(BaseSettings):
-    """Brand voice and content guidelines"""
-    brand_name: str = Field(default="Your Brand")
-    brand_voice_tone: str = Field(default="professional")
-    brand_voice_style: str = Field(default="informative")
-    brand_personality: str = Field(default="helpful")
-    
-    max_hashtags: int = Field(default=3)
-    preferred_topics: str = Field(default="tech,ai,productivity")
-    avoid_topics: str = Field(default="politics,controversial")
-    
-    posting_frequency: str = Field(default="3-5 posts per day")
-    optimal_times: str = Field(default="9:00,13:00,17:00")
-    timezone: str = Field(default="UTC")
-    
-    model_config = {"env_prefix": "BRAND_", "extra": "allow"}
-    
-    @property
-    def preferred_topics_list(self) -> List[str]:
-        return [topic.strip() for topic in self.preferred_topics.split(",")]
-    
-    @property
-    def avoid_topics_list(self) -> List[str]:
-        return [topic.strip() for topic in self.avoid_topics.split(",")]
-    
-    @property
-    def optimal_times_list(self) -> List[str]:
-        return [time.strip() for time in self.optimal_times.split(",")]
-
-class GrowthSettings(BaseSettings):
-    """Growth coaching configuration"""
-    follower_target: int = Field(default=10000)
-    monthly_growth_rate: float = Field(default=15.0)
-    engagement_rate_target: float = Field(default=5.0)
-    growth_timeline: str = Field(default="6 months")
-    
-    coaching_frequency: str = Field(default="weekly")
-    focus_areas: str = Field(default="audience_growth,engagement,content_strategy")
-    learning_style: str = Field(default="data-driven")
-    
-    competitors: str = Field(default="")
-    benchmark_metrics: str = Field(default="followers,engagement_rate,posting_frequency")
-    
-    model_config = {"env_prefix": "GROWTH_", "extra": "allow"}
-    
-    @property
-    def focus_areas_list(self) -> List[str]:
-        return [area.strip() for area in self.focus_areas.split(",")]
-    
-    @property
-    def competitors_list(self) -> List[str]:
-        if not self.competitors:
-            return []
-        return [comp.strip() for comp in self.competitors.split(",")]
-    
-    @property
-    def benchmark_metrics_list(self) -> List[str]:
-        return [metric.strip() for metric in self.benchmark_metrics.split(",")]
-
-class SecuritySettings(BaseSettings):
-    """Security and authentication settings"""
-    secret_key: str = Field(default="your-secret-key-change-this")
-    jwt_secret: str = Field(default="your-jwt-secret-change-this")
-    access_token_expire_minutes: int = Field(default=30)
-    
-    model_config = {"env_prefix": "SECURITY_", "extra": "allow"}
-
-class Settings(BaseSettings):
-    """Main application settings"""
-    app_name: str = Field(default="Freyja")
-    version: str = Field(default="1.0.0")
-    debug: bool = Field(default=False)
-    
-    # Paths
-    base_dir: Path = Field(default_factory=lambda: Path(__file__).parent)
-    data_dir: Path = Field(default_factory=lambda: Path(__file__).parent / "data")
-    logs_dir: Path = Field(default_factory=lambda: Path(__file__).parent / "logs")
-    config_dir: Path = Field(default_factory=lambda: Path(__file__).parent / "config")
-
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "allow"}
-
-def create_settings():
-    """Create fresh settings instances every time"""
-    # Force reload environment
-    load_dotenv(override=True)
-    
-    # Create fresh instances
-    database = DatabaseSettings()
-    ai = AISettings()
-    scheduling = SchedulingSettings()
-    research = ResearchSettings()
-    brand = BrandSettings()
-    growth = GrowthSettings()
-    security = SecuritySettings()
-    settings = Settings()
-    
-    # Attach sub-settings
-    settings.database = database
-    settings.ai = ai
-    settings.scheduling = scheduling
-    settings.research = research
-    settings.brand = brand
-    settings.growth = growth
-    settings.security = security
-    
-    # Backward compatibility
-    brand.preferred_topics = brand.preferred_topics_list
-    brand.avoid_topics = brand.avoid_topics_list
-    brand.optimal_times = brand.optimal_times_list
-    growth.focus_areas = growth.focus_areas_list
-    growth.competitors = growth.competitors_list
-    growth.benchmark_metrics = growth.benchmark_metrics_list
-    
-    return settings
-
-# Create the global settings instance
-_settings = None
-
-def get_settings():
-    """Get application settings - always returns fresh instance"""
-    global _settings
-    if _settings is None:
-        _settings = create_settings()
-    return _settings
-
-def reload_settings():
-    """Force reload settings"""
-    global _settings
-    _settings = None
-    _settings = create_settings()
-    return _settings
-
-# Create initial instance
-settings = create_settings()
-'''
-    
-    return config_content
-
-def nuclear_fix():
-    """Nuclear option - completely replace config"""
-    print("NUCLEAR CONFIG FIX")
-    print("=" * 40)
-    
-    # Step 1: Backup current config
-    if Path("config.py").exists():
-        print("1. Backing up current config.py...")
-        backup_name = f"config_backup_{int(__import__('time').time())}.py"
-        Path("config.py").rename(backup_name)
-        print(f"   Backed up as: {backup_name}")
-    
-    # Step 2: Create fresh config with UTF-8 encoding
-    print("2. Creating completely fresh config.py...")
-    config_content = create_windows_safe_config()
-    
-    # Use UTF-8 encoding explicitly
-    with open("config.py", "w", encoding="utf-8") as f:
-        f.write(config_content)
-    
-    print("   Created new config.py")
-    
-    # Step 3: Clear Python cache
-    print("3. Clearing Python cache...")
-    import shutil
-    
-    # Remove __pycache__ directories
-    for pycache in Path(".").rglob("__pycache__"):
-        if pycache.is_dir():
-            shutil.rmtree(pycache)
-            print(f"   Removed: {pycache}")
-    
-    # Remove .pyc files
-    for pyc_file in Path(".").rglob("*.pyc"):
-        pyc_file.unlink()
-        print(f"   Removed: {pyc_file}")
-    
-    # Step 4: Force remove from sys.modules
-    modules_to_remove = [mod for mod in sys.modules.keys() if mod.startswith('config')]
-    for mod in modules_to_remove:
-        del sys.modules[mod]
-        print(f"   Removed from sys.modules: {mod}")
-    
-    print("\nNuclear fix complete!")
-    print("\nTesting new config...")
-    
-    # Step 5: Test the new config in a subprocess to avoid caching
-    import subprocess
-    test_code = '''
-from config import get_settings
-settings = get_settings()
-anthropic_key = settings.ai.anthropic_api_key
-twitter_bearer = settings.scheduling.twitter_bearer_token
-print(f"Nuclear test - Anthropic: {'YES' if anthropic_key else 'NO'} len={len(anthropic_key) if anthropic_key else 0}")
-print(f"Nuclear test - Twitter: {'YES' if twitter_bearer else 'NO'} len={len(twitter_bearer) if twitter_bearer else 0}")
-'''
-    
-    result = subprocess.run([sys.executable, "-c", test_code], 
-                          capture_output=True, text=True, cwd=".")
-    
-    print("Test result:")
-    print(result.stdout)
-    if result.stderr:
-        print("Errors:")
-        print(result.stderr)
-
-def quick_manual_test():
-    """Quick manual test without subprocess"""
-    print("\nQuick manual test:")
-    try:
-        # Force clear any cached modules
-        if 'config' in sys.modules:
-            del sys.modules['config']
+    def _create_oauth_signature(self, method: str, url: str, params: Dict = None) -> Dict[str, str]:
+        """Create OAuth 1.0a signature for Twitter API"""
+        if params is None:
+            params = {}
         
+        # OAuth parameters
+        oauth_params = {
+            'oauth_consumer_key': self.api_key,
+            'oauth_token': self.access_token,
+            'oauth_signature_method': 'HMAC-SHA1',
+            'oauth_timestamp': str(int(time.time())),
+            'oauth_nonce': self._generate_nonce(),
+            'oauth_version': '1.0'
+        }
+        
+        # Combine all parameters
+        all_params = {**params, **oauth_params}
+        
+        # Create parameter string
+        sorted_params = sorted(all_params.items())
+        param_string = '&'.join([
+            f"{self._percent_encode(str(k))}={self._percent_encode(str(v))}"
+            for k, v in sorted_params
+        ])
+        
+        # Create signature base string
+        base_string = '&'.join([
+            method.upper(),
+            self._percent_encode(url),
+            self._percent_encode(param_string)
+        ])
+        
+        # Create signing key
+        signing_key = '&'.join([
+            self._percent_encode(self.api_secret),
+            self._percent_encode(self.access_token_secret)
+        ])
+        
+        # Create signature
+        signature = base64.b64encode(
+            hmac.new(
+                signing_key.encode('utf-8'),
+                base_string.encode('utf-8'),
+                hashlib.sha1
+            ).digest()
+        ).decode('utf-8')
+        
+        oauth_params['oauth_signature'] = signature
+        return oauth_params
+    
+    def _generate_nonce(self) -> str:
+        """Generate a unique nonce"""
+        return base64.b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
+    
+    def _percent_encode(self, string: str) -> str:
+        """Percent encode string according to RFC 3986"""
+        return urllib.parse.quote(str(string), safe='')
+    
+    def _create_auth_header(self, method: str, url: str, params: Dict = None) -> str:
+        """Create OAuth authorization header"""
+        oauth_params = self._create_oauth_signature(method, url, params)
+        
+        auth_header = 'OAuth ' + ', '.join([
+            f'{self._percent_encode(k)}="{self._percent_encode(v)}"'
+            for k, v in sorted(oauth_params.items())
+        ])
+        
+        return auth_header
+    
+    async def authenticate(self) -> bool:
+        """Test authentication with simplified approach"""
+        try:
+            # Use a simpler endpoint for testing
+            url = f"{self.base_url}/users/me"
+            
+            auth_header = self._create_auth_header("GET", url)
+            
+            headers = {
+                "Authorization": auth_header
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        user_data = await response.json()
+                        username = user_data.get('data', {}).get('username', 'unknown')
+                        logger.info(f"Twitter authentication successful: @{username}")
+                        return True
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Twitter authentication failed: HTTP {response.status}: {error_text}")
+                        return False
+                        
+        except Exception as e:
+            logger.error(f"Twitter authentication error: {e}")
+            return False
+    
+    async def get_user_info(self) -> Dict:
+        """Get authenticated user information"""
+        try:
+            url = f"{self.base_url}/users/me"
+            auth_header = self._create_auth_header("GET", url)
+            
+            headers = {
+                "Authorization": auth_header
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        return await response.json()
+                    else:
+                        error = await response.text()
+                        return {"error": f"HTTP {response.status}: {error}"}
+                        
+        except Exception as e:
+            return {"error": str(e)}
+
+# Test function for the fixed authentication
+async def test_twitter_auth_fix():
+    """Test the fixed Twitter authentication"""
+    print("🐦 Testing Fixed Twitter Authentication...")
+    
+    try:
         from config import get_settings
         settings = get_settings()
         
-        anthropic_key = settings.ai.anthropic_api_key
-        twitter_bearer = settings.scheduling.twitter_bearer_token
+        # Check if we have the required keys
+        if not all([
+            settings.scheduling.twitter_bearer_token,
+            settings.scheduling.twitter_api_key,
+            settings.scheduling.twitter_api_secret,
+            settings.scheduling.twitter_access_token,
+            settings.scheduling.twitter_access_token_secret
+        ]):
+            print("❌ Missing Twitter API keys")
+            return False
         
-        print(f"Manual test - Anthropic: {'YES' if anthropic_key else 'NO'} len={len(anthropic_key) if anthropic_key else 0}")
-        print(f"Manual test - Twitter: {'YES' if twitter_bearer else 'NO'} len={len(twitter_bearer) if twitter_bearer else 0}")
+        twitter_api = TwitterDirectAPI(
+            bearer_token=settings.scheduling.twitter_bearer_token,
+            api_key=settings.scheduling.twitter_api_key,
+            api_secret=settings.scheduling.twitter_api_secret,
+            access_token=settings.scheduling.twitter_access_token,
+            access_token_secret=settings.scheduling.twitter_access_token_secret
+        )
         
-        if anthropic_key:
-            print(f"Anthropic starts with: {anthropic_key[:10]}...")
-        if twitter_bearer:
-            print(f"Twitter starts with: {twitter_bearer[:10]}...")
-            
+        print("🔄 Testing authentication...")
+        success = await twitter_api.authenticate()
+        
+        if success:
+            print("✅ Fixed Twitter authentication successful!")
+            user_info = await twitter_api.get_user_info()
+            if 'data' in user_info:
+                username = user_info['data'].get('username', 'unknown')
+                print(f"📱 Connected as: @{username}")
+        else:
+            print("❌ Fixed Twitter authentication still failing")
+            print("💡 This might be due to Twitter API permissions or key configuration")
+        
+        return success
+        
     except Exception as e:
-        print(f"Manual test error: {e}")
+        print(f"❌ Error testing Twitter auth: {e}")
         import traceback
         traceback.print_exc()
+        return False
+
+# Simple test without OAuth for comparison
+async def test_simple_twitter():
+    """Test with just the bearer token (won't work for user endpoints but shows if keys are valid)"""
+    print("\n🧪 Testing Bearer Token Authentication...")
+    
+    try:
+        from config import get_settings
+        settings = get_settings()
+        
+        url = "https://api.twitter.com/2/tweets/search/recent?query=hello&max_results=10"
+        headers = {
+            "Authorization": f"Bearer {settings.scheduling.twitter_bearer_token}"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    print("✅ Bearer token is valid (can access public endpoints)")
+                    return True
+                else:
+                    error = await response.text()
+                    print(f"❌ Bearer token test failed: HTTP {response.status}")
+                    print(f"Error: {error}")
+                    return False
+                    
+    except Exception as e:
+        print(f"❌ Bearer token test error: {e}")
+        return False
 
 if __name__ == "__main__":
-    nuclear_fix()
-    quick_manual_test()
+    print("🔧 Twitter Authentication Debug & Test")
+    print("=" * 50)
+    
+    # Run both tests
+    asyncio.run(test_simple_twitter())
+    asyncio.run(test_twitter_auth_fix())
+    
+    print("\n💡 Note: Twitter API v2 with free tier has limitations.")
+    print("   User authentication might require elevated access.")

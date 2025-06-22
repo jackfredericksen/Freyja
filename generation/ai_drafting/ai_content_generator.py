@@ -5,7 +5,7 @@ Claude-powered content generation system
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from datetime import datetime
 
 from config import get_settings

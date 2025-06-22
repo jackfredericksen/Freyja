@@ -1,6 +1,6 @@
 """
-Freyja - Modern Scheduling Manager with Twitter Direct API
-Complete scheduling system with multiple platform support
+Freyja - Complete Modern Scheduling Manager with Fixed Twitter Authentication
+Complete scheduling system with working Twitter Direct API integration
 """
 
 import asyncio
@@ -11,6 +11,7 @@ import hashlib
 import base64
 import urllib.parse
 import time
+import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
@@ -50,7 +51,7 @@ class ScheduledPost:
             self.metadata = {}
 
 class TwitterDirectAPI:
-    """Direct Twitter API v2 integration for posting"""
+    """Direct Twitter API v2 integration with working OAuth 1.0a authentication"""
     
     def __init__(self, bearer_token: str, api_key: str, api_secret: str, 
                  access_token: str, access_token_secret: str):
@@ -61,15 +62,18 @@ class TwitterDirectAPI:
         self.access_token_secret = access_token_secret
         self.base_url = "https://api.twitter.com/2"
     
-    def _create_oauth_signature(self, method: str, url: str, params: Dict) -> str:
+    def _create_oauth_signature(self, method: str, url: str, params: Dict = None) -> Dict[str, str]:
         """Create OAuth 1.0a signature for Twitter API"""
+        if params is None:
+            params = {}
+        
         # OAuth parameters
         oauth_params = {
             'oauth_consumer_key': self.api_key,
             'oauth_token': self.access_token,
             'oauth_signature_method': 'HMAC-SHA1',
             'oauth_timestamp': str(int(time.time())),
-            'oauth_nonce': base64.b64encode(f"{time.time()}".encode()).decode().rstrip('='),
+            'oauth_nonce': self._generate_nonce(),
             'oauth_version': '1.0'
         }
         
@@ -77,31 +81,51 @@ class TwitterDirectAPI:
         all_params = {**params, **oauth_params}
         
         # Create parameter string
+        sorted_params = sorted(all_params.items())
         param_string = '&'.join([
-            f"{urllib.parse.quote(str(k))}={urllib.parse.quote(str(v))}"
-            for k, v in sorted(all_params.items())
+            f"{self._percent_encode(str(k))}={self._percent_encode(str(v))}"
+            for k, v in sorted_params
         ])
         
         # Create signature base string
-        base_string = f"{method}&{urllib.parse.quote(url)}&{urllib.parse.quote(param_string)}"
+        base_string = '&'.join([
+            method.upper(),
+            self._percent_encode(url),
+            self._percent_encode(param_string)
+        ])
         
         # Create signing key
-        signing_key = f"{urllib.parse.quote(self.api_secret)}&{urllib.parse.quote(self.access_token_secret)}"
+        signing_key = '&'.join([
+            self._percent_encode(self.api_secret),
+            self._percent_encode(self.access_token_secret)
+        ])
         
         # Create signature
         signature = base64.b64encode(
-            hmac.new(signing_key.encode(), base_string.encode(), hashlib.sha1).digest()
-        ).decode()
+            hmac.new(
+                signing_key.encode('utf-8'),
+                base_string.encode('utf-8'),
+                hashlib.sha1
+            ).digest()
+        ).decode('utf-8')
         
         oauth_params['oauth_signature'] = signature
         return oauth_params
     
+    def _generate_nonce(self) -> str:
+        """Generate a unique nonce"""
+        return base64.b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
+    
+    def _percent_encode(self, string: str) -> str:
+        """Percent encode string according to RFC 3986"""
+        return urllib.parse.quote(str(string), safe='')
+    
     def _create_auth_header(self, method: str, url: str, params: Dict = None) -> str:
         """Create OAuth authorization header"""
-        oauth_params = self._create_oauth_signature(method, url, params or {})
+        oauth_params = self._create_oauth_signature(method, url, params)
         
         auth_header = 'OAuth ' + ', '.join([
-            f'{k}="{urllib.parse.quote(str(v))}"'
+            f'{self._percent_encode(k)}="{self._percent_encode(v)}"'
             for k, v in sorted(oauth_params.items())
         ])
         
@@ -161,19 +185,15 @@ class TwitterDirectAPI:
     async def get_user_info(self) -> Dict:
         """Get authenticated user information"""
         try:
-
-            url = "https://api.twitter.com/2/users/me"
+            url = f"{self.base_url}/users/me"
             auth_header = self._create_auth_header("GET", url)
-
+            
             headers = {
                 "Authorization": auth_header
             }
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.base_url}/users/me",
-                    headers=headers
-                ) as response:
+                async with session.get(url, headers=headers) as response:
                     if response.status == 200:
                         return await response.json()
                     else:
@@ -187,7 +207,8 @@ class TwitterDirectAPI:
         """Test authentication"""
         user_info = await self.get_user_info()
         if "error" not in user_info:
-            logger.info(f"Twitter authentication successful: @{user_info.get('data', {}).get('username', 'unknown')}")
+            username = user_info.get('data', {}).get('username', 'unknown')
+            logger.info(f"Twitter authentication successful: @{username}")
             return True
         else:
             logger.error(f"Twitter authentication failed: {user_info.get('error')}")
