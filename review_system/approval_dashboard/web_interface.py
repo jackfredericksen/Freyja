@@ -347,33 +347,6 @@ class ContentPublisher:
 content_publisher = ContentPublisher()
 
 # Add this background task function
-async def auto_publish_approved_content():
-    """Background task to automatically publish approved content"""
-    while True:
-        try:
-            # Get approved items that haven't been published
-            async with aiosqlite.connect("data/approval_queue.db") as db:
-                async with db.execute("""
-                    SELECT id, content FROM content_items 
-                    WHERE status = 'approved' 
-                    ORDER BY updated_at ASC 
-                    LIMIT 5
-                """) as cursor:
-                    rows = await cursor.fetchall()
-                    
-                    for row in rows:
-                        item_id, content = row
-                        await content_publisher.publish_content(item_id, content)
-                        await asyncio.sleep(2)  # Rate limiting
-                        
-        except Exception as e:
-            logger.error(f"Error in auto-publish task: {e}")
-        
-        # Wait 30 seconds before checking again
-        await asyncio.sleep(30)
-
-# Add these new route handlers after the existing ones
-@app.post("/publish/{item_id}")
 async def manual_publish(item_id: str):
     """Manually publish an approved item"""
     try:
@@ -442,7 +415,6 @@ async def schedule_content_post(
         raise HTTPException(status_code=500, detail="Error scheduling content")
 
 # Add startup event to begin auto-publishing
-@app.on_event("startup")
 async def startup_event():
     """Start background tasks"""
     # Start the auto-publisher in the background
@@ -455,6 +427,7 @@ import asyncio
 from datetime import datetime, timedelta
 import threading
 import time
+import aiosqlite
 
 # Content Publisher Class
 class ContentPublisher:
@@ -501,33 +474,6 @@ class ContentPublisher:
 content_publisher = ContentPublisher()
 
 # Background task for auto-publishing
-async def auto_publish_approved_content():
-    """Background task to automatically publish approved content"""
-    while True:
-        try:
-            # Get approved items that haven't been published
-            async with aiosqlite.connect("data/approval_queue.db") as db:
-                async with db.execute("""
-                    SELECT id, content FROM content_items 
-                    WHERE status = 'approved' 
-                    ORDER BY updated_at ASC 
-                    LIMIT 5
-                """) as cursor:
-                    rows = await cursor.fetchall()
-                    
-                    for row in rows:
-                        item_id, content = row
-                        await content_publisher.publish_content(item_id, content)
-                        await asyncio.sleep(2)  # Rate limiting
-                        
-        except Exception as e:
-            logger.error(f"Error in auto-publish task: {e}")
-        
-        # Wait 30 seconds before checking again
-        await asyncio.sleep(30)
-
-# New route handlers
-@app.post("/publish/{item_id}")
 async def manual_publish(item_id: str):
     """Manually publish an approved item"""
     try:
@@ -635,7 +581,6 @@ async def analytics_dashboard(request: Request):
         raise HTTPException(status_code=500, detail="Error loading analytics")
 
 # Startup event to begin auto-publishing
-@app.on_event("startup")
 async def startup_event():
     """Start background tasks"""
     # Start the auto-publisher in the background

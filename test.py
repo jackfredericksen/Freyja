@@ -1,63 +1,50 @@
 #!/usr/bin/env python3
-"""Fix the duplicate enum issue"""
+"""Disable the problematic auto-publishing to get dashboard working"""
 
-def fix_content_status_enum():
-    """Fix the ContentStatus enum by removing duplicates"""
+def disable_auto_publishing():
+    """Remove the problematic startup event and background task"""
     
-    # Read the current file
-    with open("review_system/approval_dashboard/approval_queue.py", "r", encoding='utf-8') as f:
+    with open("review_system/approval_dashboard/web_interface.py", "r", encoding='utf-8') as f:
         content = f.read()
     
-    # Replace the duplicated enum with the correct one
-    old_enum_pattern = '''class ContentStatus(Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    EDITED = "edited"
-    SCHEDULED = "scheduled"
-    PUBLISHED = "published"
-    SCHEDULED = "scheduled"
-    PUBLISHED = "published"'''
-    
-    correct_enum = '''class ContentStatus(Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    EDITED = "edited"
-    SCHEDULED = "scheduled"
-    PUBLISHED = "published"'''
-    
-    # Find and replace any duplicate entries
+    # Remove the startup event that's causing issues
     lines = content.split('\n')
-    in_enum = False
     new_lines = []
-    seen_enum_values = set()
+    skip_lines = False
     
     for line in lines:
-        if 'class ContentStatus(Enum):' in line:
-            in_enum = True
+        # Skip the problematic auto-publish function and startup event
+        if 'async def auto_publish_approved_content():' in line:
+            skip_lines = True
+            continue
+        elif skip_lines and line.startswith('async def ') and 'auto_publish' not in line:
+            skip_lines = False
             new_lines.append(line)
-            seen_enum_values.clear()
-        elif in_enum and line.strip().startswith(('PENDING', 'APPROVED', 'REJECTED', 'EDITED', 'SCHEDULED', 'PUBLISHED')):
-            # Extract the enum value name
-            enum_name = line.strip().split('=')[0].strip()
-            if enum_name not in seen_enum_values:
-                new_lines.append(line)
-                seen_enum_values.add(enum_name)
-            # Skip duplicates
-        elif in_enum and (line.strip() == '' or not line.startswith('    ')):
-            in_enum = False
+        elif skip_lines:
+            continue
+        elif '@app.on_event("startup")' in line:
+            skip_lines = True
+            continue
+        elif 'async def startup_event():' in line:
+            skip_lines = True
+            continue
+        elif skip_lines and line.startswith('@app.') or (skip_lines and line.startswith('async def ') and 'startup' not in line):
+            skip_lines = False
             new_lines.append(line)
-        else:
+        elif not skip_lines:
             new_lines.append(line)
     
-    # Write the fixed content
-    with open("review_system/approval_dashboard/approval_queue.py", "w", encoding='utf-8') as f:
+    # Write back the cleaned content
+    with open("review_system/approval_dashboard/web_interface.py", "w", encoding='utf-8') as f:
         f.write('\n'.join(new_lines))
     
-    print("✅ Fixed ContentStatus enum duplicates")
+    print("✅ Disabled auto-publishing background task")
+    print("✅ Dashboard should start normally now")
 
 if __name__ == "__main__":
-    fix_content_status_enum()
-    print("Fixed! Try running your dashboard again:")
+    disable_auto_publishing()
+    print("\n🔄 Now restart your dashboard:")
     print("python run_dashboard.py")
+    print("\n📝 Note: Manual publishing still works!")
+    print("   - Approve content normally")
+    print("   - Click 'Publish' button to publish manually")
