@@ -1,50 +1,63 @@
 #!/usr/bin/env python3
-"""Disable the problematic auto-publishing to get dashboard working"""
+"""Fix OAuth import issues"""
 
-def disable_auto_publishing():
-    """Remove the problematic startup event and background task"""
+import os
+
+def fix_oauth_imports():
+    """Fix common OAuth import issues"""
     
-    with open("review_system/approval_dashboard/web_interface.py", "r", encoding='utf-8') as f:
-        content = f.read()
+    # 1. Ensure publishing directory has __init__.py
+    os.makedirs("publishing", exist_ok=True)
+    with open("publishing/__init__.py", "w") as f:
+        f.write("")
     
-    # Remove the startup event that's causing issues
-    lines = content.split('\n')
-    new_lines = []
-    skip_lines = False
+    # 2. Add OAuth import to web interface
+    web_interface_path = "review_system/approval_dashboard/web_interface.py"
     
-    for line in lines:
-        # Skip the problematic auto-publish function and startup event
-        if 'async def auto_publish_approved_content():' in line:
-            skip_lines = True
-            continue
-        elif skip_lines and line.startswith('async def ') and 'auto_publish' not in line:
-            skip_lines = False
-            new_lines.append(line)
-        elif skip_lines:
-            continue
-        elif '@app.on_event("startup")' in line:
-            skip_lines = True
-            continue
-        elif 'async def startup_event():' in line:
-            skip_lines = True
-            continue
-        elif skip_lines and line.startswith('@app.') or (skip_lines and line.startswith('async def ') and 'startup' not in line):
-            skip_lines = False
-            new_lines.append(line)
-        elif not skip_lines:
-            new_lines.append(line)
-    
-    # Write back the cleaned content
-    with open("review_system/approval_dashboard/web_interface.py", "w", encoding='utf-8') as f:
-        f.write('\n'.join(new_lines))
-    
-    print("✅ Disabled auto-publishing background task")
-    print("✅ Dashboard should start normally now")
+    if os.path.exists(web_interface_path):
+        with open(web_interface_path, "r") as f:
+            content = f.read()
+        
+        # Check if OAuth import already exists
+        if "twitter_oauth_publisher" not in content:
+            # Add import after existing imports
+            import_line = """
+# Import OAuth publisher
+try:
+    import sys
+    sys.path.append('.')
+    from publishing.twitter_oauth_publisher import twitter_oauth_publisher
+    print("✅ OAuth publisher imported successfully")
+except ImportError as e:
+    print(f"❌ OAuth import error: {e}")
+    twitter_oauth_publisher = None
+except Exception as e:
+    print(f"❌ OAuth initialization error: {e}")
+    twitter_oauth_publisher = None
+"""
+            
+            # Find a good place to insert the import
+            lines = content.split('\n')
+            insert_index = -1
+            
+            for i, line in enumerate(lines):
+                if 'from config import get_settings' in line:
+                    insert_index = i + 1
+                    break
+            
+            if insert_index != -1:
+                lines.insert(insert_index, import_line)
+                
+                with open(web_interface_path, "w") as f:
+                    f.write('\n'.join(lines))
+                
+                print("✅ Added OAuth import to web interface")
+            else:
+                print("❌ Could not find insertion point in web interface")
+        else:
+            print("✅ OAuth import already exists")
+    else:
+        print("❌ Web interface file not found")
 
 if __name__ == "__main__":
-    disable_auto_publishing()
-    print("\n🔄 Now restart your dashboard:")
-    print("python run_dashboard.py")
-    print("\n📝 Note: Manual publishing still works!")
-    print("   - Approve content normally")
-    print("   - Click 'Publish' button to publish manually")
+    fix_oauth_imports()

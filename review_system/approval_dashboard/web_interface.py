@@ -1,8 +1,3 @@
-"""
-Freyja - Review Dashboard Web Interface
-FastAPI-based dashboard for content approval and quality control
-"""
-
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -13,11 +8,21 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
-
 from config import get_settings
 from review_system.content_scoring.quality_scorer import ContentScorer
 from review_system.brand_guidelines.voice_checker import BrandVoiceChecker
 from review_system.approval_dashboard.approval_queue import ApprovalQueue, ContentItem, ContentStatus
+import asyncio
+from datetime import datetime, timedelta
+import threading
+import time
+import aiosqlite
+"""
+Freyja - Review Dashboard Web Interface
+FastAPI-based dashboard for content approval and quality control
+"""
+
+
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -297,10 +302,6 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
 # Add these imports at the top of web_interface.py after existing imports
-import asyncio
-from datetime import datetime, timedelta
-import threading
-import time
 
 # Add this class after the existing imports
 class ContentPublisher:
@@ -415,65 +416,6 @@ async def schedule_content_post(
         raise HTTPException(status_code=500, detail="Error scheduling content")
 
 # Add startup event to begin auto-publishing
-async def startup_event():
-    """Start background tasks"""
-    # Start the auto-publisher in the background
-    asyncio.create_task(auto_publish_approved_content())
-    logger.info("Started auto-publishing background task")
-
-
-# Additional imports for publishing functionality
-import asyncio
-from datetime import datetime, timedelta
-import threading
-import time
-import aiosqlite
-
-# Content Publisher Class
-class ContentPublisher:
-    """Handles publishing approved content to social media platforms"""
-    
-    def __init__(self):
-        self.published_items = set()
-        
-    async def publish_content(self, item_id: str, content: str, platform: str = "twitter"):
-        """Simulate publishing content (replace with real API calls)"""
-        try:
-            # Simulate API call delay
-            await asyncio.sleep(1)
-            
-            # In a real implementation, you would:
-            # 1. Use Twitter API, Buffer API, etc.
-            # 2. Handle authentication
-            # 3. Post the content
-            # 4. Get the post URL/ID back
-            
-            # For now, we'll simulate success
-            published_url = f"https://twitter.com/yourhandle/status/{item_id[:10]}"
-            
-            # Update the database to mark as published
-            async with aiosqlite.connect("data/approval_queue.db") as db:
-                await db.execute("""
-                    UPDATE content_items 
-                    SET status = 'published', metadata = ?
-                    WHERE id = ?
-                """, (
-                    json.dumps({"published_url": published_url, "published_at": datetime.now().isoformat()}),
-                    item_id
-                ))
-                await db.commit()
-            
-            logger.info(f"Published content {item_id} to {platform}")
-            return {"success": True, "url": published_url}
-            
-        except Exception as e:
-            logger.error(f"Failed to publish content {item_id}: {e}")
-            return {"success": False, "error": str(e)}
-
-# Initialize the publisher
-content_publisher = ContentPublisher()
-
-# Background task for auto-publishing
 async def manual_publish(item_id: str):
     """Manually publish an approved item"""
     try:
@@ -581,8 +523,402 @@ async def analytics_dashboard(request: Request):
         raise HTTPException(status_code=500, detail="Error loading analytics")
 
 # Startup event to begin auto-publishing
-async def startup_event():
-    """Start background tasks"""
-    # Start the auto-publisher in the background
-    asyncio.create_task(auto_publish_approved_content())
-    logger.info("Started auto-publishing background task")
+
+# Import AI and Twitter modules
+try:
+    from generation.ai_content.ai_generator import ai_generator
+    from publishing.twitter_publisher import twitter_publisher
+except ImportError as e:
+    logger.warning(f"Optional modules not available: {e}")
+    ai_generator = None
+    twitter_publisher = None
+
+# AI Content Generation Routes
+@app.post("/api/ai/generate")
+async def generate_ai_content(request: Request):
+    """Generate AI content"""
+    try:
+        if not ai_generator:
+            return {"success": False, "error": "AI generator not available"}
+        
+        data = await request.json()
+        topic = data.get("topic", "")
+        tone = data.get("tone", "professional")
+        content_type = data.get("content_type", "tweet")
+        include_hashtags = data.get("include_hashtags", True)
+        num_tweets = data.get("num_tweets", 3)
+        
+        if content_type == "thread":
+            result = await ai_generator.generate_thread(topic, num_tweets, tone)
+        else:
+            result = await ai_generator.generate_tweet(topic, tone, include_hashtags)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error generating AI content: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/ai/status")
+async def get_ai_status():
+    """Get AI generation status"""
+    try:
+        if ai_generator:
+            return ai_generator.get_setup_instructions()
+        else:
+            return {"current_status": "unavailable", "error": "AI generator not loaded"}
+    except Exception as e:
+        return {"error": str(e)}
+
+# Twitter Publishing Routes
+@app.get("/api/twitter/status")
+async def get_twitter_status():
+    """Get Twitter publishing status"""
+    try:
+        if twitter_publisher:
+            status = twitter_publisher.get_setup_instructions()
+            status["connected"] = twitter_publisher.client is not None
+            return status
+        else:
+            return {
+                "connected": False,
+                "error": "Twitter publisher not loaded",
+                "steps": ["Install Twitter publisher module"],
+                "cost": "N/A",
+                "note": "Twitter publisher not available"
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Enhanced publish route
+@app.post("/publish/{item_id}")
+async def publish_content_enhanced(item_id: str):
+    """Enhanced publish route with real Twitter integration"""
+    try:
+        item = await approval_queue.get_item(item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Content item not found")
+        
+        if item.status != ContentStatus.APPROVED:
+            raise HTTPException(status_code=400, detail="Only approved content can be published")
+        
+        # Use Twitter publisher if available
+        if twitter_publisher:
+            result = await twitter_publisher.publish_tweet(item.content)
+            
+            if result["success"]:
+                # Update database
+                async with aiosqlite.connect("data/approval_queue.db") as db:
+                    await db.execute("""
+                        UPDATE content_items 
+                        SET status = 'published', metadata = ?
+                        WHERE id = ?
+                    """, (
+                        json.dumps({
+                            "published_url": result["url"],
+                            "tweet_id": result.get("tweet_id"),
+                            "published_at": datetime.now().isoformat(),
+                            "message": result.get("message")
+                        }),
+                        item_id
+                    ))
+                    await db.commit()
+                
+                return RedirectResponse(url="/queue?status=published", status_code=303)
+            else:
+                raise HTTPException(status_code=500, detail=f"Publishing failed: {result.get('error')}")
+        else:
+            # Fallback to simulation
+            published_url = f"https://twitter.com/yourhandle/status/{item_id[:10]}"
+            
+            async with aiosqlite.connect("data/approval_queue.db") as db:
+                await db.execute("""
+                    UPDATE content_items 
+                    SET status = 'published', metadata = ?
+                    WHERE id = ?
+                """, (
+                    json.dumps({
+                        "published_url": published_url,
+                        "published_at": datetime.now().isoformat(),
+                        "message": "Published in simulation mode"
+                    }),
+                    item_id
+                ))
+                await db.commit()
+            
+            return RedirectResponse(url="/queue?status=published", status_code=303)
+            
+    except Exception as e:
+        logger.error(f"Error in enhanced publish: {e}")
+        raise HTTPException(status_code=500, detail="Error publishing content")
+
+
+# Import AI and Twitter modules
+try:
+    from generation.ai_content.ai_generator import ai_generator
+    from publishing.twitter_publisher import twitter_publisher
+except ImportError as e:
+    logger.warning(f"Optional modules not available: {e}")
+    ai_generator = None
+    twitter_publisher = None
+
+# AI Content Generation Routes
+@app.post("/api/ai/generate")
+async def generate_ai_content(request: Request):
+    """Generate AI content"""
+    try:
+        if not ai_generator:
+            return {"success": False, "error": "AI generator not available"}
+        
+        data = await request.json()
+        topic = data.get("topic", "")
+        tone = data.get("tone", "professional")
+        content_type = data.get("content_type", "tweet")
+        include_hashtags = data.get("include_hashtags", True)
+        num_tweets = data.get("num_tweets", 3)
+        
+        if content_type == "thread":
+            result = await ai_generator.generate_thread(topic, num_tweets, tone)
+        else:
+            result = await ai_generator.generate_tweet(topic, tone, include_hashtags)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error generating AI content: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/ai/status")
+async def get_ai_status():
+    """Get AI generation status"""
+    try:
+        if ai_generator:
+            return ai_generator.get_setup_instructions()
+        else:
+            return {"current_status": "unavailable", "error": "AI generator not loaded"}
+    except Exception as e:
+        return {"error": str(e)}
+
+# Twitter Publishing Routes
+@app.get("/api/twitter/status")
+async def get_twitter_status():
+    """Get Twitter publishing status"""
+    try:
+        if twitter_publisher:
+            status = twitter_publisher.get_setup_instructions()
+            status["connected"] = twitter_publisher.client is not None
+            return status
+        else:
+            return {
+                "connected": False,
+                "error": "Twitter publisher not loaded",
+                "steps": ["Install Twitter publisher module"],
+                "cost": "N/A",
+                "note": "Twitter publisher not available"
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Enhanced publish route
+@app.post("/publish/{item_id}")
+async def publish_content_enhanced(item_id: str):
+    """Enhanced publish route with real Twitter integration"""
+    try:
+        item = await approval_queue.get_item(item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Content item not found")
+        
+        if item.status != ContentStatus.APPROVED:
+            raise HTTPException(status_code=400, detail="Only approved content can be published")
+        
+        # Use Twitter publisher if available
+        if twitter_publisher:
+            result = await twitter_publisher.publish_tweet(item.content)
+            
+            if result["success"]:
+                # Update database
+                async with aiosqlite.connect("data/approval_queue.db") as db:
+                    await db.execute("""
+                        UPDATE content_items 
+                        SET status = 'published', metadata = ?
+                        WHERE id = ?
+                    """, (
+                        json.dumps({
+                            "published_url": result["url"],
+                            "tweet_id": result.get("tweet_id"),
+                            "published_at": datetime.now().isoformat(),
+                            "message": result.get("message")
+                        }),
+                        item_id
+                    ))
+                    await db.commit()
+                
+                return RedirectResponse(url="/queue?status=published", status_code=303)
+            else:
+                raise HTTPException(status_code=500, detail=f"Publishing failed: {result.get('error')}")
+        else:
+            # Fallback to simulation
+            published_url = f"https://twitter.com/yourhandle/status/{item_id[:10]}"
+            
+            async with aiosqlite.connect("data/approval_queue.db") as db:
+                await db.execute("""
+                    UPDATE content_items 
+                    SET status = 'published', metadata = ?
+                    WHERE id = ?
+                """, (
+                    json.dumps({
+                        "published_url": published_url,
+                        "published_at": datetime.now().isoformat(),
+                        "message": "Published in simulation mode"
+                    }),
+                    item_id
+                ))
+                await db.commit()
+            
+            return RedirectResponse(url="/queue?status=published", status_code=303)
+            
+    except Exception as e:
+        logger.error(f"Error in enhanced publish: {e}")
+        raise HTTPException(status_code=500, detail="Error publishing content")
+
+
+# Import OAuth publisher
+try:
+    from publishing.twitter_oauth_publisher import twitter_oauth_publisher
+except ImportError:
+    twitter_oauth_publisher = None
+
+# Twitter OAuth Routes
+@app.get("/twitter/login")
+async def twitter_login():
+    """Start Twitter OAuth login"""
+    try:
+        if not twitter_oauth_publisher:
+            raise HTTPException(status_code=500, detail="Twitter OAuth not available")
+        
+        auth_url = twitter_oauth_publisher.get_authorization_url()
+        if auth_url:
+            return RedirectResponse(url=auth_url)
+        else:
+            raise HTTPException(status_code=500, detail="Failed to get authorization URL")
+            
+    except Exception as e:
+        logger.error(f"Error starting Twitter login: {e}")
+        raise HTTPException(status_code=500, detail="Error starting Twitter login")
+
+@app.get("/twitter/callback")
+async def twitter_callback(oauth_verifier: str = None, denied: str = None):
+    """Handle Twitter OAuth callback"""
+    try:
+        if denied:
+            return RedirectResponse(url="/?error=twitter_auth_denied")
+        
+        if not oauth_verifier:
+            raise HTTPException(status_code=400, detail="Missing OAuth verifier")
+        
+        if not twitter_oauth_publisher:
+            raise HTTPException(status_code=500, detail="Twitter OAuth not available")
+        
+        # Complete authorization
+        success = twitter_oauth_publisher.complete_authorization(oauth_verifier)
+        
+        if success:
+            return RedirectResponse(url="/?success=twitter_connected")
+        else:
+            return RedirectResponse(url="/?error=twitter_auth_failed")
+            
+    except Exception as e:
+        logger.error(f"Error in Twitter callback: {e}")
+        return RedirectResponse(url="/?error=twitter_callback_error")
+
+@app.post("/twitter/disconnect")
+async def twitter_disconnect():
+    """Disconnect from Twitter"""
+    try:
+        if twitter_oauth_publisher:
+            success = twitter_oauth_publisher.disconnect()
+            if success:
+                return {"success": True, "message": "Disconnected from Twitter"}
+        
+        return {"success": False, "error": "Failed to disconnect"}
+        
+    except Exception as e:
+        logger.error(f"Error disconnecting Twitter: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/twitter/oauth/status")
+async def get_twitter_oauth_status():
+    """Get OAuth Twitter status"""
+    try:
+        if twitter_oauth_publisher:
+            return twitter_oauth_publisher.get_setup_instructions()
+        else:
+            return {
+                "connected": False,
+                "setup_type": "oauth",
+                "error": "Twitter OAuth not available"
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Update the existing publish route to use OAuth
+@app.post("/publish/{item_id}")
+async def publish_content_oauth(item_id: str):
+    """Publish content using OAuth Twitter"""
+    try:
+        item = await approval_queue.get_item(item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Content item not found")
+        
+        if item.status != ContentStatus.APPROVED:
+            raise HTTPException(status_code=400, detail="Only approved content can be published")
+        
+        # Use OAuth publisher
+        if twitter_oauth_publisher and twitter_oauth_publisher.is_connected():
+            result = await twitter_oauth_publisher.publish_tweet(item.content)
+            
+            if result["success"]:
+                # Update database
+                async with aiosqlite.connect("data/approval_queue.db") as db:
+                    await db.execute("""
+                        UPDATE content_items 
+                        SET status = 'published', metadata = ?
+                        WHERE id = ?
+                    """, (
+                        json.dumps({
+                            "published_url": result["url"],
+                            "tweet_id": result.get("tweet_id"),
+                            "published_at": datetime.now().isoformat(),
+                            "message": result.get("message")
+                        }),
+                        item_id
+                    ))
+                    await db.commit()
+                
+                return RedirectResponse(url="/queue?status=published", status_code=303)
+            else:
+                raise HTTPException(status_code=500, detail=f"Publishing failed: {result.get('error')}")
+        else:
+            # Fallback to simulation
+            published_url = f"https://twitter.com/yourhandle/status/{item_id[:10]}"
+            
+            async with aiosqlite.connect("data/approval_queue.db") as db:
+                await db.execute("""
+                    UPDATE content_items 
+                    SET status = 'published', metadata = ?
+                    WHERE id = ?
+                """, (
+                    json.dumps({
+                        "published_url": published_url,
+                        "published_at": datetime.now().isoformat(),
+                        "message": "Published in simulation mode - login to Twitter for real publishing"
+                    }),
+                    item_id
+                ))
+                await db.commit()
+            
+            return RedirectResponse(url="/queue?status=published", status_code=303)
+            
+    except Exception as e:
+        logger.error(f"Error in OAuth publish: {e}")
+        raise HTTPException(status_code=500, detail="Error publishing content")
