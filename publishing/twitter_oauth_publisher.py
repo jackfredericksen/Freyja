@@ -1,6 +1,6 @@
 """
 Fixed Twitter OAuth Integration for Freyja Dashboard
-Now generates correct URLs using the actual logged-in user's handle
+Uses API v1.1 which works with FREE Twitter tier
 """
 
 import tweepy
@@ -13,7 +13,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 class TwitterOAuthPublisher:
-    """Fixed Twitter OAuth integration with correct URL generation"""
+    """Fixed Twitter OAuth integration - uses v1.1 API for free tier"""
     
     def __init__(self):
         # App-level credentials
@@ -23,9 +23,9 @@ class TwitterOAuthPublisher:
         # User-specific tokens and info
         self.user_access_token = None
         self.user_access_secret = None
-        self.user_info = None  # Store user info including username
+        self.user_info = None
         
-        self.client = None
+        self.client = None  # This will be API v1.1 client
         self.auth_handler = None
         
         # Initialize OAuth handler
@@ -35,7 +35,7 @@ class TwitterOAuthPublisher:
         self._load_user_tokens()
     
     def _init_oauth(self):
-        """Initialize OAuth handler with proper error handling"""
+        """Initialize OAuth handler"""
         try:
             if not self.app_api_key or not self.app_api_secret:
                 logger.error("Twitter app credentials not found in environment variables")
@@ -63,7 +63,7 @@ class TwitterOAuthPublisher:
                     tokens = json.load(f)
                     self.user_access_token = tokens.get('access_token')
                     self.user_access_secret = tokens.get('access_token_secret')
-                    self.user_info = tokens.get('user_info')  # Load stored user info
+                    self.user_info = tokens.get('user_info')
                     
                     if self.user_access_token and self.user_access_secret:
                         self._create_client()
@@ -78,7 +78,7 @@ class TwitterOAuthPublisher:
             tokens = {
                 'access_token': access_token,
                 'access_token_secret': access_token_secret,
-                'user_info': user_info,  # Save user info including username
+                'user_info': user_info,
                 'saved_at': datetime.now().isoformat()
             }
             
@@ -90,13 +90,13 @@ class TwitterOAuthPublisher:
             logger.error(f"Error saving user tokens: {e}")
     
     def _create_client(self):
-        """Create Twitter client with user tokens and fetch user info"""
+        """Create Twitter API v1.1 client (works with free tier)"""
         try:
             if not all([self.app_api_key, self.app_api_secret, self.user_access_token, self.user_access_secret]):
                 logger.warning("Missing tokens for Twitter client creation")
                 return False
             
-            # Create API v1.1 client for posting
+            # Create OAuth 1.0a auth for API v1.1
             auth = tweepy.OAuth1UserHandler(
                 consumer_key=self.app_api_key,
                 consumer_secret=self.app_api_secret,
@@ -104,6 +104,7 @@ class TwitterOAuthPublisher:
                 access_token_secret=self.user_access_secret
             )
             
+            # Use API v1.1 client (works with free tier)
             self.client = tweepy.API(auth, wait_on_rate_limit=True)
             
             # Test connection and get user info
@@ -125,7 +126,7 @@ class TwitterOAuthPublisher:
                     self.user_info
                 )
                 
-                logger.info(f"Twitter client connected for user: @{user.screen_name}")
+                logger.info(f"Twitter API v1.1 client connected for user: @{user.screen_name}")
                 return True
                 
             except Exception as e:
@@ -215,7 +216,7 @@ class TwitterOAuthPublisher:
         return None
     
     async def publish_tweet(self, content: str) -> Dict:
-        """Publish a tweet using OAuth with correct URL generation"""
+        """Publish a tweet using API v1.1 (works with FREE tier)"""
         try:
             if not self.client:
                 return {
@@ -233,7 +234,8 @@ class TwitterOAuthPublisher:
                     "message": "Failed to get Twitter user info"
                 }
             
-            # Post tweet using API v1.1
+            # Post tweet using API v1.1 (FREE TIER COMPATIBLE)
+            logger.info(f"Posting tweet via API v1.1: {content[:50]}...")
             tweet = self.client.update_status(content)
             
             # Build correct URL using actual username
@@ -246,7 +248,8 @@ class TwitterOAuthPublisher:
                 "tweet_id": str(tweet.id),
                 "url": tweet_url,
                 "username": username,
-                "message": f"Tweet posted to @{username}"
+                "message": f"Tweet posted to @{username}",
+                "method": "api_v1.1"
             }
             
         except tweepy.TooManyRequests:
@@ -256,6 +259,7 @@ class TwitterOAuthPublisher:
                 "message": "Twitter API rate limit reached"
             }
         except tweepy.Forbidden as e:
+            logger.error(f"Twitter API Forbidden error: {e}")
             return {
                 "success": False,
                 "error": f"Twitter API error: {str(e)}",
@@ -274,7 +278,7 @@ class TwitterOAuthPublisher:
         try:
             self.user_access_token = None
             self.user_access_secret = None
-            self.user_info = None  # Clear user info
+            self.user_info = None
             self.client = None
             
             # Remove saved tokens
@@ -296,6 +300,8 @@ class TwitterOAuthPublisher:
             "connected": connected,
             "user_info": user_info,
             "setup_type": "oauth",
+            "api_version": "v1.1",
+            "free_tier_compatible": True,
             "instructions": [
                 "1. Click 'Login with Twitter' button",
                 "2. Authorize Freyja on Twitter",
@@ -303,11 +309,11 @@ class TwitterOAuthPublisher:
                 "4. Start publishing tweets!"
             ],
             "benefits": [
-                "✅ No paid API plan needed",
-                "✅ Free OAuth authentication", 
+                "✅ Works with FREE Twitter API tier",
+                "✅ No monthly fees required", 
                 "✅ One-click setup",
                 "✅ Secure OAuth flow",
-                "✅ Easy to disconnect"
+                "✅ Real tweet posting"
             ],
             "troubleshooting": [
                 "• Make sure your Twitter app has OAuth 1.0a enabled",
@@ -315,7 +321,7 @@ class TwitterOAuthPublisher:
                 "• Check that app permissions include 'Read and Write'",
                 "• Ensure TWITTER_APP_KEY and TWITTER_APP_SECRET are correct"
             ],
-            "note": "Uses Twitter's free OAuth 1.0a - works with Essential access tier"
+            "note": "Uses Twitter's API v1.1 via OAuth - compatible with Essential (free) access tier"
         }
 
 # Initialize OAuth publisher

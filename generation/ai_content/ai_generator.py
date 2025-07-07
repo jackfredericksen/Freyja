@@ -1,5 +1,6 @@
 """
 AI Content Generator for Freyja
+FIXED VERSION - Properly uses API keys
 """
 
 import os
@@ -10,23 +11,23 @@ import json
 logger = logging.getLogger(__name__)
 
 class AIContentGenerator:
-    """AI-powered content generation"""
+    """AI-powered content generation with proper API key handling"""
     
     def __init__(self):
+        # Get API keys from environment
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         
-        if self.openai_api_key:
-            try:
-                import openai
-                openai.api_key = self.openai_api_key
-                self.provider = "openai"
-            except ImportError:
-                self.provider = "simulation"
-        elif self.anthropic_api_key:
+        # Determine which provider to use
+        if self.openai_api_key and self.openai_api_key != "your_openai_api_key_here":
+            self.provider = "openai"
+            logger.info("AI Generator: Using OpenAI")
+        elif self.anthropic_api_key and self.anthropic_api_key != "your_anthropic_api_key_here":
             self.provider = "anthropic"
+            logger.info("AI Generator: Using Anthropic")
         else:
             self.provider = "simulation"
+            logger.warning("AI Generator: No valid API keys found, using simulation mode")
         
         logger.info(f"AI Content Generator initialized with provider: {self.provider}")
     
@@ -35,6 +36,8 @@ class AIContentGenerator:
         try:
             if self.provider == "openai":
                 return await self._generate_with_openai(topic, tone, include_hashtags)
+            elif self.provider == "anthropic":
+                return await self._generate_with_anthropic(topic, tone, include_hashtags)
             else:
                 return self._generate_simulation(topic, tone, include_hashtags)
                 
@@ -51,6 +54,8 @@ class AIContentGenerator:
         try:
             if self.provider == "openai":
                 return await self._generate_thread_openai(topic, num_tweets, tone)
+            elif self.provider == "anthropic":
+                return await self._generate_thread_anthropic(topic, num_tweets, tone)
             else:
                 return self._generate_thread_simulation(topic, num_tweets, tone)
                 
@@ -66,6 +71,9 @@ class AIContentGenerator:
         """Generate content using OpenAI"""
         try:
             import openai
+            
+            # Set API key
+            openai.api_key = self.openai_api_key
             
             hashtag_instruction = "Include 2-3 relevant hashtags." if include_hashtags else "Do not include hashtags."
             
@@ -93,6 +101,8 @@ Topic: {topic}
             
             content = response.choices[0].message.content.strip()
             
+            logger.info(f"OpenAI generated content: {content[:50]}...")
+            
             return {
                 "success": True,
                 "content": content,
@@ -104,6 +114,53 @@ Topic: {topic}
             
         except Exception as e:
             logger.error(f"OpenAI generation error: {e}")
+            return self._generate_simulation(topic, tone, include_hashtags)
+    
+    async def _generate_with_anthropic(self, topic: str, tone: str, include_hashtags: bool) -> Dict:
+        """Generate content using Anthropic Claude"""
+        try:
+            import anthropic
+            
+            client = anthropic.Anthropic(api_key=self.anthropic_api_key)
+            
+            hashtag_instruction = "Include 2-3 relevant hashtags." if include_hashtags else "Do not include hashtags."
+            
+            prompt = f"""Create a {tone} tweet about {topic}.
+            
+Requirements:
+- Maximum 280 characters
+- {tone.title()} tone
+- Engaging and valuable
+- {hashtag_instruction}
+- Return only the tweet content, no quotes
+
+Topic: {topic}
+"""
+            
+            response = client.messages.create(
+                model="claude-3-sonnet-20240229",
+                max_tokens=150,
+                temperature=0.7,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            content = response.content[0].text.strip()
+            
+            logger.info(f"Anthropic generated content: {content[:50]}...")
+            
+            return {
+                "success": True,
+                "content": content,
+                "provider": "anthropic",
+                "topic": topic,
+                "tone": tone,
+                "character_count": len(content)
+            }
+            
+        except Exception as e:
+            logger.error(f"Anthropic generation error: {e}")
             return self._generate_simulation(topic, tone, include_hashtags)
     
     def _generate_simulation(self, topic: str, tone: str, include_hashtags: bool) -> Dict:
@@ -156,13 +213,15 @@ Topic: {topic}
             "topic": topic,
             "tone": tone,
             "character_count": len(content),
-            "note": "Add OPENAI_API_KEY to .env for AI-generated content"
+            "note": "Add OPENAI_API_KEY or ANTHROPIC_API_KEY to .env for AI-generated content"
         }
     
     async def _generate_thread_openai(self, topic: str, num_tweets: int, tone: str) -> Dict:
         """Generate a Twitter thread using OpenAI"""
         try:
             import openai
+            
+            openai.api_key = self.openai_api_key
             
             prompt = f"""Create a Twitter thread about {topic} with {num_tweets} tweets.
 
@@ -202,6 +261,51 @@ Topic: {topic}
             logger.error(f"OpenAI thread generation error: {e}")
             return self._generate_thread_simulation(topic, num_tweets, tone)
     
+    async def _generate_thread_anthropic(self, topic: str, num_tweets: int, tone: str) -> Dict:
+        """Generate a Twitter thread using Anthropic"""
+        try:
+            import anthropic
+            
+            client = anthropic.Anthropic(api_key=self.anthropic_api_key)
+            
+            prompt = f"""Create a Twitter thread about {topic} with {num_tweets} tweets.
+
+Requirements:
+- {tone.title()} tone
+- Each tweet max 280 characters
+- First tweet should be engaging hook
+- Use thread numbering (1/{num_tweets}, 2/{num_tweets}, etc.)
+- Include relevant hashtags in the last tweet
+- Separate each tweet with a blank line
+
+Topic: {topic}
+"""
+            
+            response = client.messages.create(
+                model="claude-3-sonnet-20240229",
+                max_tokens=800,
+                temperature=0.7,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            content = response.content[0].text.strip()
+            tweets = content.split('\n\n')[:num_tweets]
+            
+            return {
+                "success": True,
+                "content": tweets,
+                "provider": "anthropic",
+                "topic": topic,
+                "tone": tone,
+                "tweet_count": len(tweets)
+            }
+            
+        except Exception as e:
+            logger.error(f"Anthropic thread generation error: {e}")
+            return self._generate_thread_simulation(topic, num_tweets, tone)
+    
     def _generate_thread_simulation(self, topic: str, num_tweets: int, tone: str) -> Dict:
         """Generate a simulated Twitter thread"""
         
@@ -221,22 +325,25 @@ Topic: {topic}
             "topic": topic,
             "tone": tone,
             "tweet_count": len(tweets),
-            "note": "Add OPENAI_API_KEY to .env for AI-generated threads"
+            "note": "Add OPENAI_API_KEY or ANTHROPIC_API_KEY to .env for AI-generated threads"
         }
     
     def get_setup_instructions(self) -> Dict:
         """Get AI setup instructions"""
         return {
+            "current_provider": self.provider,
             "providers": {
                 "OpenAI": {
                     "env_var": "OPENAI_API_KEY",
                     "cost": "$0.002 per 1K tokens",
-                    "signup": "https://platform.openai.com/api-keys"
+                    "signup": "https://platform.openai.com/api-keys",
+                    "configured": bool(self.openai_api_key and self.openai_api_key != "your_openai_api_key_here")
                 },
                 "Anthropic": {
                     "env_var": "ANTHROPIC_API_KEY", 
                     "cost": "$0.015 per 1K tokens",
-                    "signup": "https://console.anthropic.com/"
+                    "signup": "https://console.anthropic.com/",
+                    "configured": bool(self.anthropic_api_key and self.anthropic_api_key != "your_anthropic_api_key_here")
                 }
             },
             "setup_steps": [
