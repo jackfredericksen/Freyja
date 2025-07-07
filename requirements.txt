@@ -1,65 +1,45 @@
-# Freyja - Python 3.12 Compatible Requirements
+# Freyja - Fixed Requirements File
+# Core dependencies for all functionality
 
-# Core Framework
+# Web Framework
 fastapi>=0.104.0
-uvicorn>=0.24.0
+uvicorn[standard]>=0.24.0
 
-# Database & ORM  
-sqlalchemy>=2.0.0
-alembic>=1.12.0
+# Templates and Forms
+jinja2>=3.1.0
+python-multipart>=0.0.6
 
-# AI & Content Generation
-openai>=1.0.0
-anthropic>=0.7.0
+# Database
+aiosqlite>=0.19.0
 
-# Web Scraping & Research
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-feedparser>=6.0.0
-
-# Data Processing (use latest versions for 3.12 support)
-pandas>=2.0.0
-numpy>=1.24.0
-python-dateutil>=2.8.0
-
-# Configuration & Environment
+# Configuration
 python-dotenv>=1.0.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 
-# Background Tasks
-celery>=5.3.0
-redis>=5.0.0
+# AI APIs (optional - for content generation)
+openai>=1.0.0
+anthropic>=0.7.0
 
-# Scheduling & Time
-schedule>=1.2.0
-pytz>=2023.3
+# Twitter API (optional - for publishing)
+tweepy>=4.14.0
 
-# Analytics & Visualization (latest versions for 3.12)
-matplotlib>=3.7.0
-plotly>=5.15.0
+# Research Tools
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+pytrends>=4.9.0
+feedparser>=6.0.0
 
-# Development & Testing
+# Data Processing
+pandas>=2.0.0
+python-dateutil>=2.8.0
+
+# Development and Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
-black>=23.0.0
 
 # Security
 cryptography>=41.0.0
 
-# Google Trends for research
-pytrends>=4.9.0
-
-# News APIs
-newsapi-python>=0.2.6
-
-# Template Engine
-jinja2>=3.1.0
-
-# HTTP Client
-httpx>=0.25.0
-aiohttp>=3.8.0\n# Dashboard requirements\nfastapi>=0.104.0\nuvicorn[standard]>=0.24.0\njinja2>=3.1.0\naiosqlite>=0.19.0\npython-multipart>=0.0.6\n
-# AI and Publishing dependencies
-tweepy>=4.14.0
-
-# AI and Publishing dependencies
+# Utilities
+pathlib2>=2.3.7
