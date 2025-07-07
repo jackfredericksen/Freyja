@@ -1,6 +1,6 @@
 """
-Freyja - Complete Modern Scheduling Manager with Fixed Twitter Authentication
-Complete scheduling system with working Twitter Direct API integration
+Freyja - Complete Modern Scheduling Manager with Fixed Username Handling
+FIXED VERSION - No more "yourhandle" placeholders
 """
 
 import asyncio
@@ -61,6 +61,7 @@ class TwitterDirectAPI:
         self.access_token = access_token
         self.access_token_secret = access_token_secret
         self.base_url = "https://api.twitter.com/2"
+        self.user_info = None  # Store user info for URL generation
     
     def _create_oauth_signature(self, method: str, url: str, params: Dict = None) -> Dict[str, str]:
         """Create OAuth 1.0a signature for Twitter API"""
@@ -133,7 +134,7 @@ class TwitterDirectAPI:
     
     async def post_tweet(self, content: str, media_urls: List[str] = None, 
                         reply_to_id: str = None) -> Dict:
-        """Post directly to Twitter/X"""
+        """Post directly to Twitter/X with proper username handling"""
         try:
             url = f"{self.base_url}/tweets"
             
@@ -162,10 +163,17 @@ class TwitterDirectAPI:
                     if response.status == 201:
                         result = json.loads(response_text)
                         tweet_id = result.get('data', {}).get('id')
-                        logger.info(f"Tweet posted successfully: {tweet_id}")
+                        
+                        # Get username for proper URL generation
+                        username = await self._get_username()
+                        tweet_url = f"https://twitter.com/{username}/status/{tweet_id}"
+                        
+                        logger.info(f"Tweet posted successfully: {tweet_id} by @{username}")
                         return {
                             "success": True,
                             "tweet_id": tweet_id,
+                            "url": tweet_url,
+                            "username": username,
                             "data": result
                         }
                     else:
@@ -182,6 +190,20 @@ class TwitterDirectAPI:
                 "error": str(e)
             }
     
+    async def _get_username(self) -> str:
+        """Get the authenticated user's username"""
+        if self.user_info and 'username' in self.user_info:
+            return self.user_info['username']
+        
+        # Fetch user info if not cached
+        user_info = await self.get_user_info()
+        if user_info and not user_info.get('error'):
+            username = user_info.get('data', {}).get('username', 'twitter_user')
+            self.user_info = {'username': username}
+            return username
+        
+        return 'twitter_user'  # Better fallback than 'yourhandle'
+    
     async def get_user_info(self) -> Dict:
         """Get authenticated user information"""
         try:
@@ -195,7 +217,15 @@ class TwitterDirectAPI:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
                     if response.status == 200:
-                        return await response.json()
+                        data = await response.json()
+                        # Cache user info
+                        if 'data' in data:
+                            self.user_info = {
+                                'username': data['data'].get('username'),
+                                'name': data['data'].get('name'),
+                                'id': data['data'].get('id')
+                            }
+                        return data
                     else:
                         error = await response.text()
                         return {"error": f"HTTP {response.status}: {error}"}
@@ -307,7 +337,7 @@ class SimpleScheduler:
                 return True
         return False
     
-    def mark_posted(self, post_id: str, platform_post_id: str = None):
+    def mark_posted(self, post_id: str, platform_post_id: str = None, username: str = None):
         """Mark a post as successfully posted"""
         for post in self.scheduled_posts:
             if post["id"] == post_id:
@@ -315,6 +345,8 @@ class SimpleScheduler:
                 post["posted_at"] = datetime.now().isoformat()
                 if platform_post_id:
                     post["platform_post_id"] = platform_post_id
+                if username:
+                    post["username"] = username
                 break
         self._save_posts()
     
@@ -412,11 +444,13 @@ class ModernSchedulingManager:
                 )
                 
                 if result.get('success'):
+                    username = result.get('username', 'twitter_user')
                     self.simple_scheduler.mark_posted(
                         post_id, 
-                        result.get('tweet_id')
+                        result.get('tweet_id'),
+                        username
                     )
-                    logger.info(f"Posted immediately to Twitter: {result.get('tweet_id')}")
+                    logger.info(f"Posted immediately to Twitter: {result.get('tweet_id')} by @{username}")
                 else:
                     self.simple_scheduler.mark_failed(post_id, result.get('error', 'Unknown error'))
                     logger.error(f"Failed to post to Twitter: {result.get('error')}")
@@ -546,7 +580,8 @@ async def test_twitter_posting():
         )
         
         if result.get('success'):
-            print(f"✅ Posted to Twitter successfully: {result.get('tweet_id')}")
+            username = result.get('username', 'unknown')
+            print(f"✅ Posted to Twitter successfully: {result.get('tweet_id')} by @{username}")
         else:
             print(f"❌ Failed to post to Twitter: {result.get('error')}")
     

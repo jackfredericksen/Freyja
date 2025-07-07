@@ -1,5 +1,6 @@
 """
 Freyja - Approval Queue System
+FIXED VERSION - Added missing methods and proper status handling
 """
 
 import logging
@@ -131,6 +132,20 @@ class ApprovalQueue:
                 row = await cursor.fetchone()
                 return row[0] if row else 0
     
+    async def get_scheduled_count(self) -> int:
+        """Get count of scheduled items"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT COUNT(*) FROM content_items WHERE status = 'scheduled'") as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+    
+    async def get_published_count(self) -> int:
+        """Get count of published items"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT COUNT(*) FROM content_items WHERE status = 'published'") as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+    
     async def approve_item(self, item_id: str, feedback: Optional[str] = None) -> bool:
         """Approve a content item"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -166,10 +181,11 @@ class ApprovalQueue:
         return {
             "pending": await self.get_pending_count(),
             "approved": await self.get_approved_count(),
-            "rejected": await self.get_rejected_count()
+            "rejected": await self.get_rejected_count(),
+            "scheduled": await self.get_scheduled_count(),
+            "published": await self.get_published_count()
         }
     
-
     async def get_pending_items(self, limit: int = 50) -> List[ContentItem]:
         """Get all pending approval items"""
         return await self._get_items_by_status(ContentStatus.PENDING, limit)
@@ -181,6 +197,14 @@ class ApprovalQueue:
     async def get_rejected_items(self, limit: int = 50) -> List[ContentItem]:
         """Get all rejected items"""
         return await self._get_items_by_status(ContentStatus.REJECTED, limit)
+    
+    async def get_scheduled_items(self, limit: int = 50) -> List[ContentItem]:
+        """Get all scheduled items"""
+        return await self._get_items_by_status(ContentStatus.SCHEDULED, limit)
+    
+    async def get_published_items(self, limit: int = 50) -> List[ContentItem]:
+        """Get all published items"""
+        return await self._get_items_by_status(ContentStatus.PUBLISHED, limit)
     
     async def get_all_items(self, limit: int = 100) -> List[ContentItem]:
         """Get all items regardless of status"""
@@ -200,7 +224,6 @@ class ApprovalQueue:
             """, (status.value, limit)) as cursor:
                 rows = await cursor.fetchall()
                 return [self._row_to_content_item(row) for row in rows]
-
 
     def _row_to_content_item(self, row) -> ContentItem:
         """Convert database row to ContentItem"""

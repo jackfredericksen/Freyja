@@ -33,6 +33,8 @@
         .status-published { background: #cffafe; color: #164e63; }
         .empty { text-align: center; padding: 40px; color: #6b7280; }
         .auto-publish-notice { background: #e0f2fe; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .published-link { color: #1e40af; text-decoration: none; font-weight: 500; }
+        .published-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -78,7 +80,15 @@
                             <br>✗ Rejection: {{ item.rejection_reason }}
                             {% endif %}
                             {% if item.metadata and item.metadata.get('published_url') %}
-                            <br>🔗 <a href="{{ item.metadata.published_url }}" target="_blank">View Published</a>
+                            <br>🔗 <a href="{{ item.metadata.published_url }}" target="_blank" class="published-link">
+                                View Published{% if item.metadata.get('username') %} on @{{ item.metadata.username }}{% endif %}
+                                {% if item.metadata.get('simulation') %} (Demo){% endif %}
+                            </a>
+                            {% endif %}
+                            {% if item.metadata and item.metadata.get('real_post') %}
+                            <br>✅ <strong>Live Tweet Posted</strong> - Real social media post
+                            {% elif item.metadata and item.metadata.get('simulation') %}
+                            <br>🎭 <strong>Demo Mode</strong> - Simulated post for testing
                             {% endif %}
                         </div>
                     </div>
